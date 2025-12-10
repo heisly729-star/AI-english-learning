@@ -1,1 +1,5 @@
-streamlit
+streamlit>=1.28.0
+firebase-admin>=6.2.0
+streamlit-audiorecorder>=0.0.6
+python-dotenv>=1.0.0
+requests>=2.25.0

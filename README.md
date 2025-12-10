@@ -1,19 +1,124 @@
-# 🎈 Blank app template
+# 📚 AI English Learning Platform
+## 쉐도잉 & 퀴즈 플랫폼
 
-A simple Streamlit app template for you to modify!
+Google Firebase와 Streamlit을 활용한 인터랙티브 영어 학습 플랫폼입니다.
 
-[![Open in Streamlit](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://blank-app-template.streamlit.app/)
+### 🎯 주요 기능
 
-### How to run it on your own machine
+#### 1. **교사 모드 (Teacher Dashboard)**
+- 📝 **과제 만들기**: 영어 지문, 난이도, 퀴즈를 포함한 학습 과제 생성
+- 📊 **학습 결과 확인**: 학생 제출 현황 및 오디오 재생
+- 🔐 자동 생성 6자리 접속 코드
 
-1. Install the requirements
+#### 2. **학생 모드 (Student Workspace)**
+- 📖 **지문 학습**: 교사가 제공한 영어 지문 학습
+- 🎙️ **음성 녹음**: streamlit-audiorecorder를 사용한 쉐도잉 녹음
+- 🎯 **과제 제출**: Firebase Storage에 오디오 저장 및 제출
 
-   ```
-   $ pip install -r requirements.txt
-   ```
+#### 3. **백엔드 (Firebase)**
+- 🔐 **Firestore**: 과제 및 제출 데이터 관리
+- 💾 **Firebase Storage**: 학생 음성 녹음 파일 저장
+- ⚙️ **Authentication**: Admin SDK를 통한 보안 관리
 
-2. Run the app
+---
 
-   ```
-   $ streamlit run streamlit_app.py
-   ```
+## 🚀 설치 및 실행
+
+### 필수 요구사항
+- Python 3.8+
+- Firebase 프로젝트 및 인증 정보
+- `firebase-credentials.json` 파일
+
+### 1단계: 저장소 복제 및 의존성 설치
+
+```bash
+git clone <repository-url>
+cd AI-english-learning
+pip install -r requirements.txt
+```
+
+### 2단계: Firebase 인증 정보 설정
+
+#### 로컬 환경 (개발용)
+`firebase-credentials.json` 파일을 프로젝트 루트에 배치합니다.
+
+#### Streamlit Cloud 배포
+1. [Streamlit Community Cloud](https://streamlit.io/cloud)에 로그인
+2. 프로젝트 설정 → **Secrets** 섹션 진입
+3. Firebase 인증 정보를 .streamlit/secrets.toml 형식으로 추가
+
+### 3단계: 로컬에서 실행
+
+```bash
+streamlit run streamlit_app.py
+```
+
+앱이 `http://localhost:8501`에서 실행됩니다.
+
+---
+
+## 📖 사용 방법
+
+### 교사 로그인
+- ID: `admin`, 비밀번호: `1234`
+
+### 과제 만들기
+1. 단원명, 지문 내용, 난이도, 퀴즈 입력
+2. 생성 및 배포 버튼 클릭
+3. 자동 생성된 6자리 코드를 학생들에게 공유
+
+### 학습 결과 확인
+1. 과제 코드 선택
+2. 제출 현황 및 오디오 재생 확인
+
+### 학생 입장
+1. 이름과 학습 코드(6자리) 입력
+2. 입장하기 클릭
+
+### 쉐도잉 학습
+1. 영어 지문 읽기
+2. 녹음 시작/중지
+3. 제출하기 클릭
+
+---
+
+## 📁 프로젝트 구조
+
+```
+AI-english-learning/
+├── streamlit_app.py          # 메인 애플리케이션
+├── firebase_config.py        # Firebase 초기화 및 설정
+├── firebase-credentials.json # Firebase 인증 정보 (로컬 개발용)
+├── .streamlit/
+│   └── secrets.toml         # Streamlit Cloud 배포용 설정
+├── requirements.txt          # Python 의존성
+└── README.md                # 이 파일
+```
+
+---
+
+## 🔐 보안 주의사항
+
+⚠️ **firebase-credentials.json을 GitHub에 커밋하지 마세요!**
+
+`.gitignore` 파일에 다음을 추가하세요:
+```
+firebase-credentials.json
+.streamlit/secrets.toml
+```
+
+---
+
+## 🛠️ 기술 스택
+
+- **프론트엔드**: Streamlit 1.28.0+
+- **백엔드**: Python 3.8+
+- **데이터베이스**: Firebase Firestore
+- **파일 저장소**: Firebase Storage
+- **음성 녹음**: streamlit-audiorecorder
+
+---
+
+## 📝 라이선스
+
+MIT License
