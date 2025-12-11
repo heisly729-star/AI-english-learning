@@ -11,6 +11,60 @@ from io import BytesIO
 import json
 
 
+# ==========================================================================
+# GLOBAL STYLES
+# ==========================================================================
+
+def apply_global_styles():
+    """앱 전체에 공통 스타일을 적용합니다."""
+    st.markdown(
+        """
+        <style>
+        .stApp {
+            background: radial-gradient(circle at 10% 20%, #e0f2fe 0%, #f8fafc 30%, #f3e8ff 65%, #fdf2f8 100%);
+        }
+        div.block-container { padding-top: 2rem; }
+        /* 헤더 중앙 정렬 */
+        .login-hero { text-align: center; margin-bottom: 0.25rem; }
+        .login-hero h1 { margin: 0; font-size: 32px; color: #0f172a; font-weight: 800; }
+        .login-sub { text-align: center; color: #475569; font-weight: 700; font-size: 18px; margin-bottom: 1.5rem; }
+        .card {
+            background: rgba(255,255,255,0.92);
+            border-radius: 16px;
+            padding: 18px 20px;
+            box-shadow: 0 18px 48px rgba(15,23,42,0.12);
+            border: 1px solid #e2e8f0;
+        }
+        .card + .card { margin-top: 16px; }
+        .section-title { margin: 0 0 8px 0; font-weight: 800; color: #0f172a; }
+        .muted { color: #64748b; font-size: 13px; }
+        /* 로그인 탭 컨테이너 카드화 */
+        div[data-testid="stTabs"] > div:first-child {
+            background: rgba(255,255,255,0.94);
+            padding: 18px;
+            border-radius: 18px;
+            box-shadow: 0 20px 60px rgba(15,23,42,0.12);
+            border: 1px solid #e2e8f0;
+        }
+        /* 입력 및 버튼 공통 */
+        .stTextInput > div > div > input,
+        .stTextArea textarea,
+        .stSelectbox > div > div > select,
+        .stFileUploader > div {
+            border-radius: 10px;
+            border: 1px solid #e2e8f0;
+            box-shadow: inset 0 1px 2px rgba(15,23,42,0.05);
+        }
+        button[kind="secondary"], button[kind="primary"] {
+            border-radius: 12px !important;
+            font-weight: 700;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
 # ============================================================================
 # 0. YBM 교과서 데이터
 # ============================================================================
@@ -465,10 +519,12 @@ def logout():
 
 def show_login_page():
     """로그인 페이지 표시"""
-    st.title("📚 AI English Learning Platform")
-    st.write("### 쉐도잉을 통한 영어 발음 및 표현력 향상")
+    apply_global_styles()
     
-    col1, col2, col3 = st.columns([1, 2, 1])
+    st.markdown("<div class='login-hero'><h1>📚 AI English Learning Platform</h1></div>", unsafe_allow_html=True)
+    st.markdown("<div class='login-sub'>AI 평가 지문 생성 & 퀴즈 마스터</div>", unsafe_allow_html=True)
+    
+    col1, col2, col3 = st.columns([0.8, 1.4, 0.8])
     
     with col2:
         tab1, tab2 = st.tabs(["🎓 교사 로그인", "👨‍🎓 학생 입장"])
@@ -552,11 +608,15 @@ def show_teacher_dashboard():
     
     # ===== 과제 만들기 =====
     if menu == "과제 만들기":
+        st.markdown("<div class='card'>", unsafe_allow_html=True)
         show_create_assignment()
+        st.markdown("</div>", unsafe_allow_html=True)
     
     # ===== 학습 결과 확인 =====
     elif menu == "학습 결과 확인":
+        st.markdown("<div class='card'>", unsafe_allow_html=True)
         show_check_results()
+        st.markdown("</div>", unsafe_allow_html=True)
 
 
 def show_create_assignment():
@@ -778,15 +838,15 @@ def show_student_workspace():
         return
     
     # ===== 과제 정보 표시 =====
+    st.markdown("<div class='card'>", unsafe_allow_html=True)
     col1, col2 = st.columns(2)
     with col1:
         st.subheader(assignment.get("title", "제목 없음"))
     with col2:
         st.metric("난이도", assignment.get("difficulty", "N/A"))
+    st.markdown("</div>", unsafe_allow_html=True)
     
-    st.divider()
-    
-    # ===== 영어 지문 =====
+    st.markdown("<div class='card'>", unsafe_allow_html=True)
     st.subheader("📖 영어 지문")
     st.text_area(
         "지문 내용",
@@ -795,19 +855,16 @@ def show_student_workspace():
         disabled=True,
         key="text_display"
     )
+    st.markdown("</div>", unsafe_allow_html=True)
     
-    st.divider()
-    
-    # ===== 쉐도잉(녹음) 섹션 =====
+    st.markdown("<div class='card'>", unsafe_allow_html=True)
     st.subheader("🎙️ 쉐도잉 녹음")
     st.info(
         "💡 **지문을 큰 소리로 읽고 녹음하세요.**\n\n"
         "자연스러운 발음과 억양으로 읽으시면 더 좋은 평가를 받을 수 있습니다."
     )
     
-    # 오디오 파일 업로드 방식 사용
     st.subheader("🎵 오디오 파일 업로드")
-    
     audio_file = st.file_uploader(
         "녹음된 오디오 파일을 업로드하세요 (MP3, WAV, M4A 형식)",
         type=["mp3", "wav", "m4a", "ogg"],
@@ -821,18 +878,13 @@ def show_student_workspace():
         if st.button("📤 제출하기", use_container_width=True, key="submit_audio"):
             with st.spinner("업로드 중..."):
                 try:
-                    # 파일 내용을 바이트로 읽기
                     audio_bytes = audio_file.read()
-                    
-                    # Firebase Storage에 업로드
                     audio_url, filename = upload_audio_to_storage(
                         audio_bytes,
                         st.session_state.current_access_code,
                         st.session_state.user_name
                     )
-                    
                     if audio_url:
-                        # Firestore에 제출 데이터 저장
                         if save_submission(
                             st.session_state.current_access_code,
                             st.session_state.user_name,
@@ -848,10 +900,9 @@ def show_student_workspace():
                         st.error("오디오 업로드에 실패했습니다.")
                 except Exception as e:
                     st.error(f"❌ 오류가 발생했습니다: {str(e)}")
+    st.markdown("</div>", unsafe_allow_html=True)
     
-    st.divider()
-    
-    # ===== 퀴즈 =====
+    st.markdown("<div class='card'>", unsafe_allow_html=True)
     st.subheader("❓ 학습 문제")
     st.text_area(
         "문제",
@@ -860,6 +911,7 @@ def show_student_workspace():
         disabled=True,
         key="quiz_display"
     )
+    st.markdown("</div>", unsafe_allow_html=True)
 
 
 # ============================================================================
@@ -868,6 +920,7 @@ def show_student_workspace():
 
 def main():
     """메인 애플리케이션"""
+    apply_global_styles()
     if not st.session_state.is_logged_in:
         show_login_page()
     elif st.session_state.user_role == "teacher":
