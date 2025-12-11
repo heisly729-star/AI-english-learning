@@ -5,6 +5,7 @@ Firebase 초기화 및 설정 모듈
 
 import json
 import os
+import tomllib
 from dotenv import load_dotenv
 import firebase_admin
 from firebase_admin import credentials, firestore, storage
@@ -14,23 +15,65 @@ import streamlit as st
 load_dotenv()
 
 
+def _load_local_streamlit_secrets():
+    """로컬 .streamlit/secrets.toml을 로드 (TOML 또는 JSON 형태 모두 허용)."""
+    try:
+        base_dir = os.path.dirname(__file__)
+        secrets_path = os.path.join(base_dir, ".streamlit", "secrets.toml")
+        if os.path.exists(secrets_path):
+            with open(secrets_path, "rb") as f:
+                data = f.read()
+                text = data.decode()
+                stripped = text.lstrip()
+                # JSON 형태로 시작하면 JSON 우선 시도 (추가 TOML 라인이 있어도 {})까지만 파싱)
+                if stripped.startswith("{"):
+                    try:
+                        closing = text.rfind("}")
+                        if closing != -1:
+                            json_part = text[: closing + 1]
+                            return json.loads(json_part)
+                    except Exception:
+                        pass
+                # TOML 시도
+                try:
+                    return tomllib.loads(text)
+                except Exception:
+                    pass
+                # JSON 시도 (Streamlit secrets에 JSON을 붙여넣은 경우)
+                try:
+                    return json.loads(text)
+                except Exception as e:
+                    print(f"로컬 secrets.toml 로드 실패: {e}")
+    except Exception as e:
+        print(f"로컬 secrets.toml 로드 실패: {e}")
+    return {}
+
+
 def get_web_api_key():
     """
     Firebase Web API Key를 로드합니다.
-    1. 우선순위: .env 파일
-    2. 차선책: Streamlit secrets
+    1. 우선순위: .env 파일 (로컬 개발)
+    2. 차선책: Streamlit secrets (Cloud)
+    3. 예외: 로컬 secrets.toml 직접 로드 (Streamlit 미실행 시)
     """
-    # .env 파일에서 먼저 로드 (로컬 개발용)
+    # 1) .env
     api_key = os.getenv("FIREBASE_WEB_API_KEY")
     if api_key:
         return api_key
     
-    # Streamlit Cloud 환경에서 secrets.toml 확인
+    # 2) st.secrets
     try:
-        if hasattr(st, 'secrets') and "web_api_key" in st.secrets:
+        if hasattr(st, "secrets") and "web_api_key" in st.secrets:
             return st.secrets["web_api_key"]
     except Exception as e:
         print(f"Streamlit secrets에서 Web API Key 로드 실패: {e}")
+    
+    # 3) 로컬 secrets.toml 직접 로드
+    local_secrets = _load_local_streamlit_secrets()
+    if local_secrets and "web_api_key" in local_secrets:
+        return local_secrets["web_api_key"]
+    if local_secrets and "firebase" in local_secrets and "web_api_key" in local_secrets["firebase"]:
+        return local_secrets["firebase"].get("web_api_key")
     
     print("경고: Firebase Web API Key를 찾을 수 없습니다.")
     return None
@@ -41,6 +84,7 @@ def load_firebase_credentials():
     Firebase 인증 정보를 로드합니다.
     1. 우선순위: 로컬 firebase-credentials.json 파일
     2. 차선책: Streamlit secrets (Cloud 배포용)
+    3. 예외: 로컬 .streamlit/secrets.toml 직접 로드 (Streamlit 미실행 시)
     """
     # 로컬 파일에서 먼저 로드 시도
     credentials_path = os.path.join(
@@ -60,6 +104,23 @@ def load_firebase_credentials():
             return credentials.Certificate(creds_dict)
     except Exception as e:
         print(f"Streamlit secrets 로드 실패: {e}")
+    
+    # 로컬 .streamlit/secrets.toml 직접 로드 (로컬 실행 + st.secrets 미사용 시)
+    local_secrets = _load_local_streamlit_secrets()
+    if local_secrets:
+        # Case 1: TOML 형태 [firebase] 섹션
+        if "firebase" in local_secrets:
+            try:
+                creds_dict = dict(local_secrets["firebase"])
+                return credentials.Certificate(creds_dict)
+            except Exception as e:
+                print(f"로컬 secrets.toml Firebase 로드 실패: {e}")
+        # Case 2: JSON을 그대로 붙여넣은 형태 (service_account 객체 최상위)
+        elif "type" in local_secrets and "private_key" in local_secrets:
+            try:
+                return credentials.Certificate(local_secrets)
+            except Exception as e:
+                print(f"로컬 secrets(JSON) 로드 실패: {e}")
     
     raise FileNotFoundError(
         "Firebase 인증 정보를 찾을 수 없습니다. "
