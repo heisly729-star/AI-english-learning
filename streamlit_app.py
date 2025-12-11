@@ -1,5 +1,5 @@
 """
-영어 학습용 쉐도잉 & 퀴즈 플랫폼
+ReadFit - 영어 학습 플랫폼
 Streamlit + Firebase를 활용한 인터랙티브 영어 학습 도구
 """
 
@@ -7,8 +7,6 @@ import streamlit as st
 import random
 import string
 from datetime import datetime
-from io import BytesIO
-import json
 
 
 # ==========================================================================
@@ -69,253 +67,60 @@ def apply_global_styles():
 # 0. YBM 교과서 데이터
 # ============================================================================
 
-# YBM 교과서 단원별 지문 데이터 (난이도별)
 YBM_TEXTBOOK = {
     "Unit 1": {
-        "title": "Unit 1 - Greeting",
-        "Beginner": "Hello! My name is John. I am from New York. Nice to meet you. How are you today? I am fine, thank you. What is your name? Where are you from?",
-        "Intermediate": "Good morning, everyone! My name is John Smith and I come from New York City. I'm delighted to make your acquaintance. How are you doing today? I'm doing quite well, thank you for asking. What might your name be? And which country do you hail from?",
-        "Advanced": "Allow me to introduce myself - I am John Smith, a native of New York City with a background in international business. I am absolutely delighted to make your acquaintance today. I trust you are doing exceptionally well? I am doing remarkably well, thank you sincerely for your inquiry. Might I have the pleasure of knowing your name? And perhaps, from which country do you originate?"
+        "title": "Unit 1 - My Lifelogging",
+        "Beginner": "Hi! I am Harin. I like to run. I run in the park every day. The air is fresh and nice. I use a running app on my phone. It shows my speed and time. It also counts my steps. The app helps me a lot. Running makes me happy and healthy. Hello! My name is Mike. I love fashion and clothes. I take photos of my outfits every day. Then I post the pictures on social media. Many people follow me. They like my fashion posts. They write nice things about my clothes. I feel happy when they comment. This is my fashion diary. Hi! I am Elena. I really love donuts. They are so delicious. I go to donut shops on weekends. I use a map app to find good shops. I mark my favorite shops on the map. Then I go there again with my friends. We eat donuts together. Donuts make me very happy. They are my favorite snack. All three of us record our daily activities. We use apps and social media. This is called lifelogging. We share our hobbies with others. It is fun to keep records of what we do. Lifelogging helps us remember good times. We can look back and smile at our memories.",
+        "Intermediate": "Hi, everyone! I'm Harin. I am an active person. I exercise a lot. I love running. I often run in the park, and I enjoy the fresh air there. I use a running app. It records my speed, time, and steps. It is very helpful. The app shows me how much I improve each day. I can see my progress over time. Sometimes I share my running records with my friends. They encourage me to keep going. Running is not just exercise for me. It is a way to clear my mind and feel energized. Hello! My name is Mike. I'm very interested in fashion. I take pictures of my clothes. Then, I post them on social media. These pictures are my fashion diary. I have many followers. They love my posts. They leave nice comments, too. Fashion is my passion and my way of expressing myself. Every morning, I choose my outfit carefully. I think about colors, styles, and trends. Taking photos helps me remember what I wore and how I felt that day. My followers give me ideas and feedback. We inspire each other with different fashion styles. My name is Elena. I'm into donuts these days. I visit donut shops in my free time. I mark good shops on my map app. Then, I visit them again with my friends. Donuts are not just a snack for me. They are my happiness! Each donut shop has unique flavors and recipes. I love trying new types of donuts. My map app helps me discover hidden gem shops in the city. When I find a great donut, I feel excited to share it with friends. We talk about the taste, texture, and toppings. These small moments bring us joy.",
+        "Advanced": "Greetings, everyone! I am Harin, and I consider myself a highly active individual with a strong commitment to physical fitness. Running constitutes a significant aspect of my lifestyle. I frequently engage in running sessions at the local park, where I appreciate the invigorating fresh air and natural surroundings. To optimize my training regimen, I utilize a sophisticated running application that meticulously tracks various metrics including velocity, duration, and step count. This technology-driven approach provides valuable data that enables me to monitor my performance improvements over extended periods. The quantified self-movement, exemplified by such tracking methods, facilitates goal-setting and motivational reinforcement. Beyond the physiological benefits, running serves as a meditative practice that enhances my mental clarity and overall well-being. Greetings! My name is Mike, and I possess a profound interest in contemporary fashion and personal styling. I systematically document my daily attire through photography, subsequently sharing these images on various social media platforms. This curated collection functions as a comprehensive fashion diary that chronicles my evolving aesthetic sensibilities. I have cultivated a substantial following of individuals who engage enthusiastically with my content through comments and interactions. Fashion, for me, transcends mere clothing selection; it represents a form of artistic self-expression and identity construction. Each morning's outfit selection involves deliberate consideration of color theory, stylistic coherence, and current fashion trends. The digital documentation process allows for retrospective analysis of my fashion journey while simultaneously contributing to broader online fashion discourse. The reciprocal nature of social media engagement fosters a community of fashion enthusiasts who mutually inspire and influence one another. My name is Elena, and I have recently developed an intense fascination with artisanal donuts. I dedicate considerable leisure time to exploring various donut establishments throughout the metropolitan area. Employing a mapping application, I catalog noteworthy shops, creating a personalized gastronomic guide that facilitates future visits with companions. For me, donuts represent more than simple confectionery; they embody sources of genuine happiness and sensory pleasure. Each establishment offers distinctive flavor profiles and preparation techniques that reflect unique culinary philosophies. My systematic approach to discovering and documenting these experiences exemplifies the contemporary phenomenon of food-focused lifelogging. The integration of mobile technology with culinary exploration enhances social connectivity, as sharing these discoveries with friends creates memorable collective experiences centered around appreciation of quality craftsmanship in food preparation."
     },
     "Unit 2": {
-        "title": "Unit 2 - Family",
-        "Beginner": "I have a family. I have a mother and a father. I have one brother and one sister. My mother is a teacher. My father is a doctor. We live together in a big house. We are happy.",
-        "Intermediate": "I come from a close-knit family. My family consists of my mother, who is a dedicated teacher, and my father, who works as a doctor. Additionally, I have one brother and one sister. We all live together in a spacious house in the suburbs. Our family shares many wonderful moments together.",
-        "Advanced": "I originate from a closely knit family unit comprising my mother, an accomplished educator, and my father, who practices medicine as a physician. I have one brother and one sister with whom I share familial bonds. Our household is situated in a spacious residence in the suburban area. We maintain harmonious relationships and frequently engage in meaningful family interactions."
+        "title": "Unit 2 - Fun School Events Around the World",
+        "Beginner": "Today is a special day in New Zealand. It is Cross Country Race Day. All students run in the woods. We run four kilometers. The path has small hills and many trees. It is not easy, but we can do it. Everyone is at the starting line now. We are ready to run. Let's go! In the Philippines, August is special. It is National Language Month. We have many languages in our country. There are over 100 languages! At school, we have fun events. We have speech contests. We read poems. We act in plays. Everything is in our own languages. I am very proud of my language. It is important to keep our languages alive. In the USA, all students learn music at my school. Some students join the orchestra. Some students join the chorus. Others join the music band. Soon we will have a big concert. I will play the violin in the orchestra. My friend Tom will sing in the chorus. Annie will play the guitar in the band. Our parents will come to watch us. I am nervous but very excited. In Korea, we have a digital writing contest today. We use our smartphones to take pictures. We also write stories about our school. Then we post everything on the school website. Today's topic is our school in spring. I will write about the school garden. I will take pictures of beautiful flowers. This contest is really fun. These are special school events from different countries. Each country has unique traditions. School events help us learn and have fun together.",
+        "Intermediate": "Today is Cross Country Race Day in New Zealand. It's a big sport event at our school. We run 4 kilometers in the woods. The course has small hills and lots of trees. It is a hard race, but we can finish it. Now, we're waiting at the starting line! Everyone is excited and ready. Cross country running teaches us perseverance and teamwork. Even though we run individually, we cheer for our classmates. The fresh air and natural scenery make the challenge enjoyable. How many languages do you have in your country? We have over 100 languages in the Philippines. August is National Language Month. There are many events at schools. We have speech contests. We read poems and act in our languages. I'm proud of our languages! Language is an important part of our culture and identity. These events help us appreciate linguistic diversity. Students perform traditional songs and stories in various regional languages. At my school in the USA, every student joins the orchestra, the chorus, or the music band. Soon, we will have a concert in the music hall. I will play the violin in the orchestra. Tom will sing in the chorus, and Annie will play the guitar in the band. My parents are waiting for the concert. I'm nervous but excited! Music education is valued at our school. Regular performances help students develop confidence and artistic skills. We have a digital writing contest today in Korea. We write stories and take pictures with our smartphones. Then, we post our work on the school's online board. The topic is our school campus in the spring. I will write about the school garden and post pictures of the beautiful flowers. It will be fun! Digital literacy is an important skill in modern education. This contest combines creativity with technology.",
+        "Advanced": "Today marks Cross Country Race Day in New Zealand, a significant athletic event at our institution. Participants undertake a challenging four-kilometer course through wooded terrain characterized by undulating hills and dense vegetation. This endurance event, while physically demanding, represents an achievable goal for all students who have trained adequately. At present, competitors are assembled at the starting line, demonstrating a mixture of anticipation and determination. Cross country running cultivates not merely physical stamina but also mental resilience and strategic pacing abilities. The communal aspect of cheering for classmates fosters school spirit and collective achievement despite the individual nature of the competition. The Philippines boasts remarkable linguistic diversity, with over 100 distinct languages spoken throughout the archipelago. August is designated as National Language Month, during which educational institutions organize numerous celebratory events. These include oratorical competitions, poetic recitations, and theatrical performances conducted in various indigenous languages. Such initiatives serve to preserve and promote linguistic heritage in an era of increasing globalization. Students gain appreciation for the rich tapestry of Filipino linguistic and cultural traditions. These educational activities reinforce the importance of multilingualism as both a cultural asset and a cognitive advantage. At my American school, comprehensive music education constitutes a mandatory component of the curriculum. Every student participates in either the orchestra, choral ensemble, or instrumental band. An upcoming concert in the school's auditorium will showcase our collective musical development. I shall perform violin in the orchestra, while my peers Tom and Annie will contribute vocal and guitar performances respectively. Despite pre-performance anxiety, the experience of collaborative musical creation proves immensely rewarding. Music education has been demonstrated to enhance cognitive abilities, emotional intelligence, and collaborative skills. Today's digital writing contest in Korea exemplifies the integration of technology with creative expression in contemporary education. Students compose narratives and capture photographic imagery using smartphones, subsequently publishing their work on the school's digital platform. The designated theme focuses on the school campus during the spring season. I intend to document the botanical beauty of our school garden through both prose and photography. This innovative pedagogical approach develops digital literacy, creative writing skills, and visual composition abilities simultaneously, preparing students for the multimedia communication landscape of the 21st century."
     },
     "Unit 3": {
-        "title": "Unit 3 - Food",
-        "Beginner": "I like to eat many kinds of food. I like rice and bread. I like chicken and fish. I like vegetables and fruit. I eat breakfast, lunch, and dinner. I drink milk and water. What do you like to eat?",
-        "Intermediate": "I have a diverse palate and enjoy consuming a wide variety of foods. I particularly enjoy rice and bread as staple foods. I also like chicken and fish as protein sources. Additionally, I appreciate vegetables and fruits for their nutritional value. I have three meals daily - breakfast, lunch, and dinner. I also consume milk and water regularly.",
-        "Advanced": "I possess an eclectic taste in cuisine and appreciate the consumption of an extensive array of comestibles. I have a particular predilection for rice and bread as foundational carbohydrates. I also exhibit a preference for poultry and fish as protein sources. Furthermore, I appreciate the nutritional and gustatory benefits of vegetables and fruits. I maintain a structured eating schedule with breakfast, lunch, and dinner. Additionally, I consume dairy products and water for hydration."
+        "title": "Unit 3 - Food and Nutrition",
+        "Beginner": "Food is very important for our health. We need to eat different kinds of food every day. A balanced diet includes fruits, vegetables, grains, proteins, and dairy products. For breakfast, many people eat cereal, toast, or eggs. Some people drink orange juice or milk. Breakfast gives us energy to start the day. For lunch, students often eat sandwiches, salads, or rice with vegetables. It is important to eat vegetables because they have many vitamins. Carrots are good for our eyes. Spinach makes us strong. Tomatoes have vitamin C. For dinner, families usually eat together. They might have chicken, fish, or beef with rice or potatoes. Drinking water is very important. We should drink at least eight glasses of water every day. Water helps our body work well. Some foods are not healthy. Candy and soda have too much sugar. Chips have too much salt. We should not eat too much fast food like hamburgers and pizza. These foods can make us sick if we eat them every day. Fruits are nature's candy. Apples, bananas, oranges, and grapes are delicious and healthy. They give us natural sugar and energy. We should eat five servings of fruits and vegetables every day. Protein helps build strong muscles. We can get protein from meat, fish, eggs, beans, and nuts. Calcium makes our bones and teeth strong. Milk, cheese, and yogurt have calcium. Growing children need calcium every day. Eating healthy food helps us grow, learn, and play. When we eat good food, we feel happy and strong. We can think better in school and run faster in sports.",
+        "Intermediate": "Understanding nutrition is essential for maintaining a healthy lifestyle. Nutritionists recommend following the food pyramid or the newer MyPlate guidelines, which emphasize balanced portions of different food groups. A well-rounded diet should consist of whole grains, lean proteins, fruits, vegetables, and low-fat dairy products. Whole grains like brown rice, whole wheat bread, and oatmeal provide fiber and sustained energy throughout the day. Unlike refined grains, they help regulate blood sugar levels and promote digestive health. Proteins are the building blocks of our bodies. They repair tissues and support muscle growth. Good protein sources include chicken, fish, eggs, legumes, tofu, and nuts. Fish, particularly salmon and tuna, contain omega-3 fatty acids that benefit heart and brain health. Fruits and vegetables are rich in vitamins, minerals, and antioxidants. These nutrients strengthen our immune system and protect against diseases. Colorful vegetables like broccoli, bell peppers, and sweet potatoes offer different nutritional benefits. Nutritionists suggest eating a rainbow of colors to ensure varied nutrient intake. Calcium and vitamin D work together to build strong bones. Dairy products, fortified plant-based milk, and leafy greens provide calcium. Sunlight helps our bodies produce vitamin D. However, modern eating habits often include too much processed food, which contains excessive sodium, sugar, and unhealthy fats. These ingredients contribute to obesity, diabetes, and heart disease. Reading nutrition labels helps us make informed choices about what we consume. Portion control is equally important. Even healthy foods can lead to weight gain if consumed in large quantities. Staying hydrated by drinking water instead of sugary beverages supports overall health and helps maintain proper body functions.",
+        "Advanced": "Nutritional science has evolved significantly over the past decades, revealing the complex relationship between diet and overall health. Contemporary research emphasizes not merely the quantity of food consumed but the quality and nutritional density of dietary choices. The concept of functional foods—items that provide health benefits beyond basic nutrition—has gained prominence in nutritional discourse. These include foods rich in probiotics, antioxidants, and phytonutrients that may help prevent chronic diseases. The Mediterranean diet, extensively studied for its health benefits, exemplifies a balanced approach to nutrition. It prioritizes olive oil, fish, whole grains, legumes, and abundant fresh produce while limiting red meat and processed foods. Research indicates this dietary pattern reduces cardiovascular disease risk and promotes longevity. Macronutrient balance—the ratio of carbohydrates, proteins, and fats—remains a subject of ongoing scientific investigation. While traditional guidelines recommended low-fat diets, current evidence suggests that healthy fats from sources like avocados, nuts, and fatty fish play crucial roles in hormone production, nutrient absorption, and cellular function. The glycemic index and glycemic load concepts help individuals understand how different carbohydrates affect blood sugar levels. Complex carbohydrates with low glycemic indices provide sustained energy and better metabolic outcomes compared to simple sugars. Emerging research on the gut microbiome has revolutionized our understanding of nutrition's impact on health. The trillions of bacteria in our digestive system influence not only digestion but also immune function, mental health, and disease susceptibility. Fermented foods and dietary fiber support beneficial gut bacteria. However, nutritional requirements vary based on age, gender, activity level, and individual health conditions. Personalized nutrition, guided by genetic factors and biomarkers, represents the future of dietary recommendations, moving beyond one-size-fits-all guidelines."
     },
     "Unit 4": {
-        "title": "Unit 4 - School",
-        "Beginner": "I go to school every day. I study English, math, and science. My teachers are kind and helpful. I have many friends at school. We play together at lunch time. School is fun and interesting.",
-        "Intermediate": "I attend school on a daily basis. Throughout my academic day, I study several subjects including English, mathematics, and science. My teachers are exceptionally kind and always willing to provide assistance. I have made numerous friends at school with whom I interact regularly. During lunch breaks, we enjoy playing games and socializing together. Overall, school provides me with an engaging and intellectually stimulating environment.",
-        "Advanced": "I maintain regular attendance at an educational institution where I engage in the study of multiple disciplines including English language arts, mathematics, and natural sciences. My pedagogical instructors demonstrate remarkable kindness and demonstrate unwavering commitment to educational assistance. I have cultivated substantive friendships with numerous peers within the academic setting. During designated lunch periods, we engage in recreational activities and social interactions. The educational experience proves to be both intellectually engaging and profoundly enriching."
+        "title": "Unit 4 - My Family Tradition",
+        "Beginner": "My name is Yubin. My father is from India. My mother is from Korea. They both work with computers. We are a family of three. We have two special family traditions. Every spring, we go to the baseball park. It is the first day of the baseball season. We wear our team's uniform. We cheer loudly for our team. We take pictures at the park gates. I was four years old when we went there for the first time. Now I am older, but we still go every year. It is very exciting! My father's birthday is in the fall. We do special things on his birthday. In the evening, we cook Indian chicken curry together. It is my father's favorite food. We use special curry powder from my grandmother in India. It tastes like real Indian food. We all love eating curry together. It is warm and delicious. After dinner, we play a board game called pachisi. It is a traditional game from India. My father played this game when he was a child. Last year, I lost the game. So I had to wash the dishes. This year, I want to win! I will try my best. Family traditions are very important. They create happy memories. I love our family traditions. I want to keep them for a long time. When I grow up and have my own family, I will teach these traditions to my children. Traditions connect us to our family history and culture.",
+        "Intermediate": "My name is Yubin. My father and mother are computer engineers. My mother fell in love with him when she worked in India. Yes, my father is Indian. We're a family of three. We have two family traditions. Every spring, we visit the city's baseball park on the KBO's opening day. It's an exciting day. We wear our team's uniform and cheer for them loudly. We like to take pictures at the gates. When we visited the park for the first time, I was four years old. This tradition has continued for many years now. The excitement of opening day never gets old. Watching baseball together brings our family closer. We share the joy of victories and the disappointment of defeats. My father's birthday is in the fall. We do special things on his birthday. In the evening, we cook Indian chicken curry together. It's his favorite dish. We get special curry powder from my grandmother in India. It has the real taste of India. We all love a warm and tasty bowl of curry. Cooking together is a bonding experience. We talk, laugh, and share stories while preparing the meal. After dinner, we play pachisi. It's a traditional board game in India. My father played it when he was young. Last year, I lost the game and did the dishes. I really want to win this year! The game teaches us about strategy and patience. It also connects us to my father's childhood memories in India. Family traditions create wonderful memories. I love my family traditions and hope to keep them for a long time. These rituals give us a sense of identity and belonging. They remind us of our multicultural heritage and the love that binds us together.",
+        "Advanced": "My name is Yubin. Both my parents are computer engineers who met professionally. My mother developed romantic feelings for my father during her employment tenure in India. Indeed, my father is of Indian descent, making our household a cross-cultural family unit of three members. We maintain two distinctive family traditions that reflect our bicultural heritage. Annually during spring, we attend the city's baseball stadium on the Korean Baseball Organization's opening day. This occasion represents a significant family ritual. We don matching team uniforms and enthusiastically support our chosen team with vocal encouragement. We habitually capture photographic memories at the stadium entrance gates. I was merely four years of age during our inaugural visit, and this tradition has persisted consistently ever since. The ceremonial aspect of opening day attendance transcends mere sports spectatorship; it represents a familial bonding experience and a celebration of Korean cultural participation. My father's birthday occurs during the autumn season. We observe specific commemorative practices on this occasion. During the evening hours, we collaboratively prepare Indian chicken curry, his preferred culinary dish. We utilize specialized curry powder procured from my paternal grandmother in India, ensuring authentic flavor profiles characteristic of genuine Indian cuisine. The communal preparation and consumption of this meal constitutes both a gastronomic experience and a cultural ritual connecting us to my father's heritage. Following the meal, we engage in pachisi, a traditional Indian board game with historical significance. My father participated in this game during his childhood in India. During last year's competition, my defeat resulted in dish-washing responsibilities. This year, I am determined to achieve victory through improved strategic gameplay. The game serves multiple functions: entertainment, strategic thinking development, and cultural transmission. Family traditions function as crucial mechanisms for creating enduring memories and establishing familial identity. I deeply value our family traditions and aspire to perpetuate them indefinitely. These practices represent more than mere routines; they embody our multicultural identity, preserve intergenerational connections, and reinforce the affective bonds that constitute our family unit. Such traditions provide continuity, meaning, and a sense of belonging in an increasingly globalized world."
     },
     "Unit 5": {
-        "title": "Unit 5 - Sports",
-        "Beginner": "I like sports very much. I play soccer with my friends. I also like basketball and tennis. I exercise three times a week. Exercise is good for my health. I run in the park every morning.",
-        "Intermediate": "I have a strong passion for sports and athletic activities. I regularly play soccer with my friends on weekends. I also enjoy basketball and tennis as recreational pursuits. I maintain a consistent exercise routine three times per week. Physical activity is beneficial for my overall health and wellness. I go for runs in the park every morning as part of my fitness regimen.",
-        "Advanced": "I maintain an ardent enthusiasm for sports and athletic endeavors. I engage in soccer matches with my companions on a regular basis during weekends. I also cultivate an appreciation for basketball and tennis as avocational pursuits. I adhere to a disciplined exercise schedule, maintaining physical activity thrice weekly. Regular physical exertion provides substantial benefits to my comprehensive health and physiological well-being. I undertake morning constitutional runs through the municipal park as an integral component of my fitness program."
+        "title": "Unit 5 - Sports and Physical Activity",
+        "Beginner": "Sports are fun and good for our health. Many people around the world love sports. Soccer is the most popular sport globally. Players kick a ball and try to score goals. Basketball is another popular sport. Players bounce a ball and throw it through a hoop. Swimming is great exercise. It makes our arms, legs, and heart strong. Tennis is a sport played with rackets. Two or four players hit a ball over a net. Running is simple but very healthy. Many people jog in parks every morning. Playing sports has many benefits. Exercise makes our bodies strong and healthy. It helps our hearts work better and gives us more energy. Sports also make us happy. When we play sports, our brain releases chemicals that make us feel good. Team sports like soccer and basketball teach us important lessons. We learn to work together and help our teammates. We learn to follow rules and be fair. We also learn that practice makes us better. Even when we lose, we can learn and improve. Some people prefer individual sports like swimming or running. These sports help us set personal goals and challenge ourselves. Many schools have physical education classes. Students play different sports and learn about fitness. Some students join school sports teams. They practice after school and compete with other schools. Playing sports keeps kids active and healthy. It's also a great way to make friends. Everyone can enjoy sports, whether playing for fun or competing seriously. The important thing is to be active, try your best, and have fun while staying healthy.",
+        "Intermediate": "Physical activity and sports participation contribute significantly to overall health and personal development. Engaging in regular exercise strengthens cardiovascular systems, builds muscle tone, and enhances flexibility. Medical professionals recommend at least 150 minutes of moderate physical activity weekly for adults, while children should aim for 60 minutes daily. Athletic activities encompass diverse categories. Team sports like soccer, basketball, and volleyball foster collaboration and communication skills. Players must coordinate strategies, support teammates, and work toward common objectives. These experiences translate into valuable life skills applicable in academic and professional contexts. Individual sports such as swimming, running, and tennis cultivate self-discipline and personal responsibility. Athletes set individual goals, monitor progress, and develop mental resilience through training. Competitive swimming, for instance, requires consistent practice and technique refinement. Marathon runners demonstrate extraordinary endurance and dedication. Participation in sports also promotes psychological well-being. Physical activity reduces stress and anxiety while improving mood and self-esteem. The endorphins released during exercise create positive feelings and can alleviate symptoms of depression. Athletic involvement provides social connections and community belonging, particularly important for young people navigating social development. Moreover, sports teach essential values including perseverance, sportsmanship, and respect for opponents. Athletes learn to accept both victory and defeat gracefully, understanding that improvement comes through persistent effort. These character-building experiences shape individuals' approaches to challenges throughout life. From youth leagues to professional competitions, sports unite communities and transcend cultural boundaries, demonstrating universal values of excellence and fair play.",
+        "Advanced": "The multifaceted benefits of sports and physical activity extend far beyond mere physiological improvements, encompassing psychological, social, and cultural dimensions. Contemporary sports science examines the intricate relationship between physical activity and holistic human development. Physiologically, regular exercise induces numerous adaptations including enhanced cardiovascular efficiency, improved metabolic function, increased bone density, and optimized neuromuscular coordination. Research demonstrates that consistent physical activity significantly reduces risk factors for chronic diseases such as diabetes, hypertension, and certain cancers. The psychological dimensions of sports participation merit serious consideration. Athletic engagement facilitates development of mental toughness, emotional regulation, and cognitive flexibility. Sports psychology research reveals that athletes often demonstrate superior executive function, including enhanced attention control and decision-making capabilities developed through competitive experiences. Furthermore, athletic participation provides opportunities for experiencing flow states—optimal psychological experiences characterized by complete absorption in challenging activities. The social capital generated through sports participation proves invaluable. Team sports cultivate leadership abilities, conflict resolution skills, and cultural competence through interaction with diverse teammates. These interpersonal competencies transfer readily to professional environments, explaining why many organizations actively recruit former athletes. Sports also function as vehicles for social mobility and community integration, particularly for marginalized populations. From a sociocultural perspective, sports reflect and shape broader societal values. Competitive athletics demonstrate meritocratic principles while simultaneously revealing persistent inequities in access and opportunity. Contemporary discourse addresses issues of gender equality, racial justice, and economic accessibility within sports institutions. Professional athletics generates substantial economic activity while raising questions about commercialization and ethical considerations in sports management. Understanding sports requires recognizing these complex, interconnected dimensions that influence individual development and collective social dynamics."
     },
     "Unit 6": {
-        "title": "Unit 6 - Hobbies",
-        "Beginner": "My hobby is reading books. I like to read stories about animals. I read every day before bed. Reading is fun and relaxing. I also like drawing pictures. I draw my favorite animals in my notebook.",
-        "Intermediate": "My primary hobby is reading literature, particularly novels about adventure and exploration. I dedicate considerable time to reading every evening before retiring. Reading provides me with both entertainment and relaxation. I also enjoy painting and sketching, which allows me to express my creativity. I maintain a collection of my artwork that I am quite proud of.",
-        "Advanced": "My principal avocation encompasses the perusal of contemporary literature, with particular emphasis on novels exploring philosophical themes and cultural narratives. I engage in this intellectual pursuit quotidian, deriving substantial gratification from the literary experience. Additionally, I cultivate an appreciation for visual arts, including watercolor painting and pencil sketching. These artistic endeavors facilitate profound self-expression and cognitive development."
+        "title": "Unit 6 - Hobbies and Leisure Activities",
+        "Beginner": "Hobbies are activities we do for fun in our free time. Everyone should have hobbies because they make us happy and relaxed. Reading books is a popular hobby. When we read, we learn new things and visit different worlds through stories. Many people like reading adventure stories, mystery books, or books about animals. Drawing and painting are creative hobbies. With just paper and colored pencils, we can create beautiful pictures. Some people draw landscapes, others draw people or animals. Art helps us express our feelings and ideas. Playing musical instruments is another wonderful hobby. The piano, guitar, and violin are common instruments. Learning music takes time and practice, but it is very rewarding. Music makes our brains work better and helps us concentrate. Collecting things is fun too. Some people collect stamps from different countries. Others collect coins, rocks, or trading cards. Collections teach us about history and different cultures. Gardening is a peaceful hobby. We can grow flowers, vegetables, or herbs in a garden or even in small pots on a balcony. Taking care of plants teaches us patience and responsibility. Watching plants grow is very satisfying. Sports and outdoor activities are active hobbies. Hiking, cycling, and swimming keep us healthy and strong. Photography is becoming very popular. With cameras or smartphones, we can capture special moments and beautiful scenes. Cooking is both useful and enjoyable. Trying new recipes and making delicious food for family and friends is rewarding. Hobbies give us something to look forward to after school or work. They help us develop new skills and meet people with similar interests.",
+        "Intermediate": "Leisure activities play a crucial role in maintaining work-life balance and personal well-being. Pursuing hobbies provides opportunities for self-expression, skill development, and stress relief. The benefits extend beyond simple entertainment, contributing to mental health and overall life satisfaction. Reading represents one of the most enriching leisure pursuits. Literature expands vocabulary, enhances critical thinking, and develops empathy by exposing readers to diverse perspectives and experiences. Whether fiction or non-fiction, reading stimulates imagination and provides intellectual engagement. Many people join book clubs to share insights and discuss themes with fellow enthusiasts. Artistic endeavors such as painting, drawing, or sculpting offer therapeutic benefits. The creative process facilitates emotional expression and mindfulness. Art therapy research demonstrates that creative activities reduce anxiety and promote psychological healing. Digital art has expanded possibilities, allowing artists to experiment with various media and techniques. Musical engagement, whether playing instruments or singing, activates multiple brain regions simultaneously. Neuroscience research indicates that musical training enhances memory, coordination, and cognitive flexibility. Many communities offer amateur orchestras or choirs where individuals can participate collectively. Physical hobbies including hiking, cycling, and rock climbing combine exercise with nature appreciation. These activities reduce stress while improving cardiovascular health. Outdoor recreation fosters environmental awareness and appreciation for natural beauty. Collecting reflects human fascination with categorization and completion. Whether stamps, coins, or vintage items, collections require research, organization, and knowledge acquisition. Serious collectors develop expertise in their specialized areas, sometimes contributing to academic understanding. The digital age has introduced new hobby categories. Gaming, coding, and content creation attract millions of enthusiasts worldwide. These pursuits develop technological literacy and creative problem-solving abilities. Ultimately, hobbies enrich life by providing purpose, challenge, and joy beyond professional obligations.",
+        "Advanced": "The psychology of leisure and recreational pursuits reveals profound insights into human motivation, identity formation, and well-being. Leisure activities serve functions beyond mere diversion, contributing significantly to self-actualization and life satisfaction. Contemporary research in positive psychology emphasizes the importance of engaging in personally meaningful activities that facilitate flow experiences, which are states of complete absorption where individuals lose self-consciousness and time awareness. Literary engagement exemplifies cognitively demanding leisure that yields substantial developmental benefits. Reading complex narratives enhances theory of mind, the capacity to understand others mental states, and cultivates empathetic understanding across cultural and temporal boundaries. Literary analysis develops critical thinking and interpretive skills transferable to numerous domains. Furthermore, bibliotherapy employs literature therapeutically to address psychological challenges and facilitate personal growth. Artistic creation engages neural networks associated with planning, motor control, and emotional processing. Neuroscientific investigations using functional magnetic resonance imaging reveal that artistic activities activate the default mode network, facilitating introspection and self-referential thought. Art-making serves as a form of non-verbal communication, particularly valuable for individuals who struggle with linguistic expression of complex emotions. Musical training produces remarkable neuroplastic changes, including increased gray matter volume in regions associated with motor control, auditory processing, and executive function. Longitudinal studies demonstrate that musical education enhances linguistic abilities, mathematical reasoning, and spatial-temporal skills. The social dimensions of ensemble performance foster collaborative abilities and collective emotional expression. Outdoor recreation reflects biophilia, humans innate connection to nature. Environmental psychology research demonstrates that natural environments reduce cognitive fatigue, lower cortisol levels, and enhance mood. The concept of wilderness therapy employs outdoor experiences to facilitate psychological healing and personal transformation. Collecting behaviors manifest deep-seated cognitive predispositions toward categorization and pattern recognition. Collections provide tangible manifestations of personal identity and intellectual interests. Museum-quality private collections occasionally contribute to scholarly research and cultural preservation. The digital revolution has democratized creative production, enabling unprecedented participation in media creation, knowledge sharing, and global communities of practice. These contemporary leisure forms challenge traditional distinctions between consumption and production, fostering participatory culture."
     },
     "Unit 7": {
-        "title": "Unit 7 - Travel",
-        "Beginner": "I love to travel. I like visiting new places. Last summer, I went to Tokyo. It was very beautiful. I visited temples and parks. I ate delicious food. I want to travel again next year.",
-        "Intermediate": "I have a genuine passion for traveling and exploring diverse destinations. Last summer, I had the opportunity to visit Tokyo, which proved to be an absolutely captivating experience. I explored historical temples, visited serene gardens, and sampled authentic Japanese cuisine. The cultural richness of the experience has motivated my desire to undertake further travels in the coming years.",
-        "Advanced": "I maintain an ardent enthusiasm for international travel and cultural exploration. During my preceding summer excursion to Tokyo, I engaged in comprehensive exploration of historical temples, meticulously maintained gardens, and gastronomic establishments featuring traditional Japanese cuisine. The profound cultural immersion facilitated extensive personal enrichment and intellectual stimulation, thereby invigorating my determination to pursue subsequent international expeditions."
+        "title": "Unit 7 - Travel and Exploring the World",
+        "Beginner": "Traveling is exciting and educational. When we visit new places, we see different things and learn about other cultures. Many families take vacations during summer. Some people go to the beach. They swim in the ocean, build sandcastles, and collect shells. The beach is relaxing and fun. Other families visit mountains. They go hiking on trails, breathe fresh air, and enjoy beautiful views. Mountain air is clean and healthy. Cities are interesting places to visit too. Big cities have tall buildings, museums, and famous landmarks. In London, people can see Big Ben and Buckingham Palace. In Paris, the Eiffel Tower is very famous. New York has the Statue of Liberty. Before traveling, people need to prepare. They pack clothes, toothbrushes, and other necessary items in suitcases. They check the weather to know what clothes to bring. Some people make lists so they don't forget anything important. There are many ways to travel. Airplanes are fast and can go to far places quickly. Trains are comfortable for traveling between cities. Buses are cheaper than planes and trains. Cars give families freedom to stop wherever they want. When traveling to other countries, people often learn new words in different languages. Saying hello, thank you, and goodbye in the local language is polite and helpful. Local people appreciate when visitors try to speak their language. Trying new foods is an exciting part of traveling. Each country has special dishes. Italian pizza and pasta are delicious. Chinese dumplings are tasty. Mexican tacos are spicy and flavorful. Traveling helps us understand that people everywhere have different customs but share similar feelings and dreams. It makes the world feel smaller and friendlier.",
+        "Intermediate": "Travel broadens perspectives and enriches understanding of global diversity. Exploring different regions exposes individuals to varied cultural practices, historical contexts, and natural environments. Tourism represents a significant economic sector while facilitating cross-cultural exchange and international understanding. Destination selection depends on personal interests and objectives. Historical tourism focuses on visiting sites of cultural and historical significance. Ancient ruins like Machu Picchu in Peru or the Colosseum in Rome connect visitors with past civilizations. Museums and heritage sites preserve cultural artifacts and narratives. Ecotourism emphasizes environmental conservation and sustainable practices. Travelers visit natural reserves, observe wildlife in habitats, and support conservation efforts. Destinations like the Galapagos Islands or African safaris offer remarkable biodiversity experiences while promoting ecological awareness. Adventure tourism attracts individuals seeking physical challenges and novel experiences. Activities include mountain climbing, scuba diving, and trekking through remote regions. These experiences test personal limits and create lasting memories. Effective travel planning enhances trip quality. Researching destinations, understanding local customs, and learning basic phrases in local languages demonstrate respect and facilitate positive interactions. Budget management ensures financial sustainability throughout trips. Cultural sensitivity remains crucial when traveling. Different societies maintain distinct social norms, religious practices, and communication styles. Observing and respecting these differences prevents misunderstandings and fosters mutual appreciation. Photography etiquette, dress codes, and behavioral expectations vary significantly across cultures. Transportation options influence travel experiences. Air travel enables rapid long-distance movement but contributes to carbon emissions. Train travel offers scenic routes and reduced environmental impact. Overland travel by bus or car provides flexibility and opportunities for spontaneous exploration. Accommodation choices range from budget hostels to luxury resorts, each offering distinct experiences and price points. Travel ultimately transforms individuals by challenging assumptions, expanding worldviews, and creating connections across geographical and cultural boundaries.",
+        "Advanced": "The anthropology of travel reveals complex motivations underlying human mobility and the profound impacts of tourism on both travelers and host communities. Contemporary travel encompasses diverse paradigms from mass tourism to transformative journeys focused on personal growth and cultural immersion. The tourism industry constitutes a significant component of global economic activity, generating employment and revenue while simultaneously raising concerns about sustainability, cultural commodification, and environmental degradation. The concept of sustainable tourism addresses the ecological footprint of travel. Climate change implications of aviation, overtourism's impact on fragile ecosystems, and resource consumption in tourist destinations necessitate thoughtful approaches. Responsible travelers minimize environmental impact through conscious transportation choices, supporting eco-certified accommodations, and respecting natural habitats. Community-based tourism initiatives empower local populations and distribute economic benefits more equitably. Cultural tourism presents both opportunities and challenges. While facilitating intercultural understanding and preserving heritage sites through economic incentives, tourism can also lead to cultural commodification where authentic practices become performative displays for commercial purposes. The tension between preservation and commercialization remains an ongoing concern in cultural heritage management. Travel writing and documentation shape collective understanding of places and peoples. Historical travel narratives often reflected colonial perspectives and orientalist frameworks that exoticized and misrepresented non-Western cultures. Contemporary travel discourse increasingly emphasizes respectful representation, avoiding stereotypes, and acknowledging power dynamics inherent in tourist-host relationships. Globalization has transformed travel accessibility and patterns. Budget airlines democratized international travel, while digital technologies facilitate planning, navigation, and documentation. However, this accessibility concentrates tourist flows toward popular destinations, exacerbating overtourism challenges in places like Venice, Barcelona, and certain Southeast Asian islands. The psychology of travel examines how journeys influence identity formation and perspective transformation. Immersive travel experiences can catalyze personal development by challenging preconceptions, fostering adaptability, and cultivating cultural intelligence. Extended travel or living abroad demonstrably enhances cognitive flexibility and creative thinking. Understanding travel requires recognizing it as a complex phenomenon shaped by economic forces, cultural exchanges, environmental considerations, and individual psychological processes, with implications extending far beyond simple leisure activity."
     },
     "Unit 8": {
-        "title": "Unit 8 - Career",
-        "Beginner": "When I grow up, I want to be a doctor. Doctors help people. They work in hospitals. They study hard in school. I like science class. I want to help sick people and make them healthy.",
-        "Intermediate": "My aspiration is to pursue a career in medicine upon completing my education. Medical professionals play a vital role in society by providing healthcare services and improving patient outcomes. The field requires rigorous academic preparation and specialized training. I am particularly interested in pediatric medicine, as it allows me to work directly with children and their families.",
-        "Advanced": "My professional aspirations center upon the pursuit of a career in medical science, specifically within the field of pediatric oncology. This specialization would facilitate my contribution to advancing therapeutic interventions for critically ill pediatric patients. The discipline necessitates extensive academic preparation, including undergraduate studies, medical school, residency training, and specialized fellowship programs. I am committed to acquiring the requisite expertise to address complex healthcare challenges in this specialized domain."
+        "title": "Unit 8 - Career and Professional Life",
+        "Beginner": "Choosing a career is an important decision. A career is the work we do for many years. There are many different types of jobs. Doctors and nurses work in hospitals and help sick people get better. They study medicine for many years. Teachers work in schools. They help students learn reading, writing, math, and many other subjects. Teachers need to be patient and kind. Engineers design and build things like bridges, buildings, and machines. They use math and science in their work. Police officers and firefighters keep people safe. They are brave and help during emergencies. Artists and musicians create beautiful paintings, sculptures, or music. They need creativity and practice. Chefs work in restaurants and cook delicious meals. They need to know about different foods and recipes. Farmers grow food like vegetables, fruits, and grains. They work hard outdoors and take care of plants and animals. Office workers help companies run smoothly. They use computers and phones for their jobs. Some people work in stores and help customers find what they need. Others deliver mail or packages to homes and businesses. To prepare for a career, students need to work hard in school. Reading, writing, and math are important for almost every job. Some careers need special training or college education. People can also learn skills through practice and experience. It is good to think about what you enjoy doing. If you like helping people, you might become a doctor or teacher. If you enjoy building things, engineering might be good. If you love animals, you could be a veterinarian. Everyone has different talents and interests. Finding the right career makes work enjoyable and meaningful.",
+        "Intermediate": "Career development constitutes a crucial aspect of adult life, influencing financial stability, personal identity, and life satisfaction. The contemporary job market requires strategic planning, continuous skill development, and adaptability to changing economic conditions. Educational preparation varies significantly across professions. Traditional careers in medicine, law, and engineering require extensive formal education including undergraduate degrees, graduate programs, and professional certifications. Medical professionals complete four years of medical school followed by residency training lasting three to seven years depending on specialization. Legal careers require law school and passing bar examinations. The technology sector has transformed career landscapes dramatically. Software development, data science, and cybersecurity represent rapidly growing fields with substantial demand. These careers often prioritize demonstrable skills and portfolio work over traditional credentials, though computer science degrees remain valuable. Entrepreneurship appeals to individuals seeking autonomy and creative control. Starting businesses requires business acumen, risk tolerance, and persistent effort. While potentially rewarding, entrepreneurship involves financial uncertainty and demanding workloads. Successful entrepreneurs identify market needs, develop innovative solutions, and build effective teams. Professional development involves continuous learning throughout careers. Technological advancement, industry evolution, and changing best practices necessitate ongoing skill acquisition. Professional conferences, workshops, online courses, and industry certifications help workers remain competitive and advance in their fields. Work-life balance has gained prominence in career discussions. Traditional career trajectories emphasizing constant availability and prioritizing work over personal life increasingly face criticism. Many professionals now seek positions offering flexible schedules, remote work options, and respect for personal time. Networking significantly influences career advancement. Professional relationships facilitate knowledge exchange, collaboration opportunities, and job leads. Industry associations, alumni networks, and professional social media platforms enable connection with colleagues and mentors. Career transitions have become increasingly common. Individuals change careers multiple times throughout working lives, pursuing new interests, responding to market changes, or seeking better compensation. Transferable skills facilitate these transitions, allowing professionals to apply competencies across different contexts.",
+        "Advanced": "The sociology of work and career trajectories reveals how professional life intersects with broader economic structures, social identities, and individual agency. Contemporary career dynamics reflect tensions between traditional employment models and emerging work arrangements, shaped by technological disruption, globalization, and evolving organizational structures. The decline of lifelong employment with single organizations has fundamentally altered career paradigms. Rather than linear progression within hierarchical organizations, contemporary careers often follow non-linear paths involving lateral moves, industry transitions, and portfolio careers combining multiple income streams. This shift places greater responsibility on individuals for career management while reducing job security and institutional support. Credentialism—the increasing emphasis on educational credentials for employment—has intensified across sectors. Educational attainment correlates strongly with lifetime earnings and career opportunities. However, this trend raises concerns about accessibility and equity, as advanced degrees require substantial financial investment and time commitments that disproportionately burden certain populations. The gig economy represents a significant structural shift in employment relationships. Platform-based work offers flexibility and autonomy but often lacks benefits, job security, and labor protections associated with traditional employment. Debates continue regarding worker classification, rights, and the future of work in platform capitalism. Artificial intelligence and automation pose both opportunities and challenges for career planning. While technological advancement creates new roles requiring sophisticated skills, it simultaneously threatens to automate routine cognitive and manual tasks. Career resilience requires adaptability, continuous learning, and cultivation of distinctly human capabilities including creativity, emotional intelligence, and complex problem-solving. Professional identity formation involves integrating work roles into broader self-concepts. Careers provide not merely income but meaning, social status, and self-actualization opportunities. The psychological contract between employers and employees—mutual expectations regarding obligations and contributions—profoundly affects job satisfaction and organizational commitment. Gender, race, and socioeconomic background significantly influence career trajectories through mechanisms including discrimination, differential access to networks and mentorship, and systemic barriers. Addressing workplace equity requires institutional reforms, inclusive policies, and critical examination of organizational cultures and hiring practices. Understanding careers requires recognizing them as complex phenomena shaped by individual agency, structural constraints, technological forces, and cultural values, with profound implications for personal well-being and social organization."
     }
 }
 
-# AI 자동 퀴즈 생성 함수
-def generate_ai_quiz(text_content, unit_title, difficulty):
-    """
-    지문을 기반으로 AI가 자동으로 3가지 유형의 퀴즈를 생성합니다.
-    1. 요약 문제 (Summary)
-    2. 주제 추론 (Theme Inference)
-    3. 제목 추론 (Title Inference)
-    """
-    
-    # 난이도별 질문 수준 조정
-    difficulty_level = "초급" if "Beginner" in difficulty else "중급" if "Intermediate" in difficulty else "고급"
-    
-    # 단원별 기본 정보 추출
-    unit_num = unit_title.split()[0]  # "Unit 1" 같은 형식에서 "Unit"
-    topic = unit_title.split("-")[1].strip() if "-" in unit_title else "Topic"
-    
-    # 1. 요약 문제 (Summary)
-    summary_questions = {
-        "Unit 1 - Greeting": {
-            "Beginner": "이 지문의 주요 내용은 무엇입니까?",
-            "Intermediate": "지문에서 설명하는 인사의 중요성을 요약하시오.",
-            "Advanced": "지문의 핵심 메시지를 한 문장으로 요약하고, 그 의미를 설명하시오."
-        },
-        "Unit 2 - Family": {
-            "Beginner": "가족 구성원들이 어떤 일을 하는지 설명하세요.",
-            "Intermediate": "지문에서 가족 관계가 어떻게 묘사되는지 요약하세요.",
-            "Advanced": "가족의 역할과 관계의 중요성을 지문을 바탕으로 분석하세요."
-        },
-        "Unit 3 - Food": {
-            "Beginner": "어떤 음식들이 언급되었나요?",
-            "Intermediate": "지문에서 식습관에 대해 설명하는 내용을 요약하시오.",
-            "Advanced": "음식과 건강의 관계를 지문의 내용으로 설명하시오."
-        },
-        "Unit 4 - School": {
-            "Beginner": "학교에서 하는 활동들을 설명하세요.",
-            "Intermediate": "학교 환경이 어떻게 묘사되는지 요약하세요.",
-            "Advanced": "교육 경험의 가치를 지문을 바탕으로 분석하세요."
-        },
-        "Unit 5 - Sports": {
-            "Beginner": "어떤 스포츠들이 언급되었나요?",
-            "Intermediate": "운동이 건강에 미치는 영향에 대해 설명하세요.",
-            "Advanced": "신체활동의 다양한 이점을 지문의 내용으로 분석하세요."
-        },
-        "Unit 6 - Hobbies": {
-            "Beginner": "어떤 취미활동들이 소개되었나요?",
-            "Intermediate": "취미활동이 개인에게 어떤 의미를 갖는지 설명하세요.",
-            "Advanced": "취미가 자아 발견과 창의성에 미치는 영향을 분석하세요."
-        },
-        "Unit 7 - Travel": {
-            "Beginner": "어디로 여행을 갔습니까?",
-            "Intermediate": "여행의 의미와 영향에 대해 설명하세요.",
-            "Advanced": "문화 교류와 개인 성장의 관점에서 여행의 가치를 분석하세요."
-        },
-        "Unit 8 - Career": {
-            "Beginner": "어떤 직업을 소개하고 있나요?",
-            "Intermediate": "선택된 직업의 특징과 필요성에 대해 설명하세요.",
-            "Advanced": "전문 직업 선택의 동기와 사회적 책임을 분석하세요."
-        }
-    }
-    
-    # 2. 주제 추론 문제 (Theme Inference)
-    theme_questions = {
-        "Unit 1 - Greeting": {
-            "Beginner": "이 지문의 주제는 무엇입니까?",
-            "Intermediate": "지문이 전달하려는 사회적 메시지는 무엇입니까?",
-            "Advanced": "인간관계 형성의 기초가 되는 커뮤니케이션의 중요성을 파악하시오."
-        },
-        "Unit 2 - Family": {
-            "Beginner": "이 지문의 주제는 무엇입니까?",
-            "Intermediate": "가족의 역할과 중요성에 대한 저자의 관점을 파악하세요.",
-            "Advanced": "가족 관계에서 도출할 수 있는 사회적, 심리적 의미를 추론하세요."
-        },
-        "Unit 3 - Food": {
-            "Beginner": "이 지문의 주제는 무엇입니까?",
-            "Intermediate": "음식과 건강의 관계에 대한 관점을 추론하세요.",
-            "Advanced": "음식 문화와 라이프스타일의 상관관계를 분석하세요."
-        },
-        "Unit 4 - School": {
-            "Beginner": "이 지문의 주제는 무엇입니까?",
-            "Intermediate": "학교가 학생 개인에게 갖는 의미를 추론하세요.",
-            "Advanced": "교육 기관이 사회에서 수행하는 역할을 비판적으로 분석하세요."
-        },
-        "Unit 5 - Sports": {
-            "Beginner": "이 지문의 주제는 무엇입니까?",
-            "Intermediate": "운동이 개인의 삶에서 갖는 중요성을 추론하세요.",
-            "Advanced": "신체활동과 정신 건강의 상호 관계를 분석하세요."
-        },
-        "Unit 6 - Hobbies": {
-            "Beginner": "이 지문의 주제는 무엇입니까?",
-            "Intermediate": "취미 활동이 삶의 질에 미치는 영향을 추론하세요.",
-            "Advanced": "개인의 예술 활동이 자아 정체성 형성에 미치는 역할을 분석하세요."
-        },
-        "Unit 7 - Travel": {
-            "Beginner": "이 지문의 주제는 무엇입니까?",
-            "Intermediate": "여행이 개인에게 갖는 의미를 추론하세요.",
-            "Advanced": "국제 여행 경험이 세계관 형성에 미치는 영향을 분석하세요."
-        },
-        "Unit 8 - Career": {
-            "Beginner": "이 지문의 주제는 무엇입니까?",
-            "Intermediate": "직업 선택의 동기와 목표를 추론하세요.",
-            "Advanced": "개인의 전문 활동과 사회 기여의 관계를 분석하세요."
-        }
-    }
-    
-    # 3. 제목 추론 문제 (Title Inference)
-    title_questions = {
-        "Unit 1 - Greeting": {
-            "Beginner": "이 지문에 가장 적합한 제목은 무엇입니까?",
-            "Intermediate": "이 지문의 내용을 가장 잘 나타내는 제목을 작성하세요.",
-            "Advanced": "지문의 함축적 의미를 반영한 창의적인 제목을 제시하고 그 이유를 설명하세요."
-        },
-        "Unit 2 - Family": {
-            "Beginner": "이 지문에 가장 적합한 제목은 무엇입니까?",
-            "Intermediate": "가족의 구조와 역할을 반영하는 제목을 작성하세요.",
-            "Advanced": "현대 가족의 특성을 포함한 깊이 있는 제목을 제시하고 근거를 제시하세요."
-        },
-        "Unit 3 - Food": {
-            "Beginner": "이 지문에 가장 적합한 제목은 무엇입니까?",
-            "Intermediate": "음식 문화와 건강을 반영하는 제목을 작성하세요.",
-            "Advanced": "음식과 생활 방식의 관계를 나타내는 의미 깊은 제목을 제시하세요."
-        },
-        "Unit 4 - School": {
-            "Beginner": "이 지문에 가장 적합한 제목은 무엇입니까?",
-            "Intermediate": "학교의 역할과 의미를 반영하는 제목을 작성하세요.",
-            "Advanced": "교육의 사회적 가치를 드러내는 철학적 제목을 제시하세요."
-        },
-        "Unit 5 - Sports": {
-            "Beginner": "이 지문에 가장 적합한 제목은 무엇입니까?",
-            "Intermediate": "운동의 신체적, 정신적 이점을 반영하는 제목을 작성하세요.",
-            "Advanced": "스포츠의 사회적, 문화적 의미를 포함한 제목을 제시하세요."
-        },
-        "Unit 6 - Hobbies": {
-            "Beginner": "이 지문에 가장 적합한 제목은 무엇입니까?",
-            "Intermediate": "취미 활동의 의미와 가치를 반영하는 제목을 작성하세요.",
-            "Advanced": "예술과 자아 발견의 관계를 나타내는 창의적인 제목을 제시하세요."
-        },
-        "Unit 7 - Travel": {
-            "Beginner": "이 지문에 가장 적합한 제목은 무엇입니까?",
-            "Intermediate": "여행 경험과 개인 성장을 반영하는 제목을 작성하세요.",
-            "Advanced": "문화 교류와 세계 시민 의식을 나타내는 제목을 제시하세요."
-        },
-        "Unit 8 - Career": {
-            "Beginner": "이 지문에 가장 적합한 제목은 무엇입니까?",
-            "Intermediate": "직업 선택의 동기와 목표를 반영하는 제목을 작성하세요.",
-            "Advanced": "전문직과 사회 봉사의 관계를 나타내는 제목을 제시하세요."
-        }
-    }
-    
-    # 난이도별 문제 선택
-    difficulty_label = "Beginner" if "Beginner" in difficulty else "Intermediate" if "Intermediate" in difficulty else "Advanced"
-    
-    summary_q = summary_questions.get(unit_title, {}).get(difficulty_label, "이 지문의 주요 내용을 요약하세요.")
-    theme_q = theme_questions.get(unit_title, {}).get(difficulty_label, "이 지문의 주제는 무엇입니까?")
-    title_q = title_questions.get(unit_title, {}).get(difficulty_label, "이 지문에 가장 적합한 제목은 무엇입니까?")
-    
-    return {
-        "summary": {
-            "type": "📝 요약 문제 (Summary)",
-            "question": summary_q
-        },
-        "theme": {
-            "type": "🎯 주제 추론 (Theme Inference)",
-            "question": theme_q
-        },
-        "title": {
-            "type": "📋 제목 추론 (Title Inference)",
-            "question": title_q
-        }
-    }
-
 
 # ============================================================================
-# 1. PAGE CONFIG & INITIALIZATION
-# ============================================================================
-
-st.set_page_config(
-    page_title="AI English Learning Platform",
-    page_icon="📚",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
-
-# Session State 초기화
-if "is_logged_in" not in st.session_state:
-    st.session_state.is_logged_in = False
-if "user_role" not in st.session_state:
-    st.session_state.user_role = None  # "teacher" or "student"
-if "user_name" not in st.session_state:
-    st.session_state.user_name = None
-if "current_access_code" not in st.session_state:
-    st.session_state.current_access_code = None
-
-
-# ============================================================================
-# 2. FIREBASE INITIALIZATION (Lazy Loading)
+# 1. FIREBASE INITIALIZATION (Lazy Loading) - 기존 유지
 # ============================================================================
 
 @st.cache_resource
@@ -337,12 +142,12 @@ except Exception:
 
 
 # ============================================================================
-# 3. UTILITY FUNCTIONS
+# 2. UTILITY FUNCTIONS
 # ============================================================================
 
 def authenticate_teacher(email, password):
     """
-    Firebase Authentication으로 교사 인증
+    Firebase Authentication으로 교사 인증 (기존 함수 유지)
     """
     try:
         import requests
@@ -376,7 +181,6 @@ def authenticate_teacher(email, password):
         else:
             error_message = data.get("error", {}).get("message", "로그인 실패")
             
-            # Firebase 에러 메시지 매핑
             error_map = {
                 "INVALID_EMAIL": "유효하지 않은 이메일 주소입니다.",
                 "INVALID_PASSWORD": "비밀번호가 틀렸습니다.",
@@ -407,104 +211,11 @@ def check_access_code_exists(code):
     """Firestore에서 해당 접속 코드가 존재하는지 확인"""
     try:
         db = get_firestore_client()
-        doc = db.collection("assignments").document(code).get()
+        doc = db.collection("readfit_assignments").document(code).get()
         return doc.exists
     except Exception as e:
         st.error(f"데이터베이스 오류: {e}")
         return False
-
-
-def get_assignment_data(code):
-    """Firestore에서 과제 데이터 조회"""
-    try:
-        db = get_firestore_client()
-        doc = db.collection("assignments").document(code).get()
-        if doc.exists:
-            return doc.to_dict()
-        return None
-    except Exception as e:
-        st.error(f"과제 데이터 조회 오류: {e}")
-        return None
-
-
-def save_assignment(code, data):
-    """Firestore에 과제 저장"""
-    try:
-        db = get_firestore_client()
-        data["created_at"] = datetime.now()
-        db.collection("assignments").document(code).set(data)
-        return True
-    except Exception as e:
-        st.error(f"과제 저장 오류: {e}")
-        return False
-
-
-def upload_audio_to_storage(audio_bytes, access_code, student_name):
-    """Firebase Storage에 오디오 파일 업로드"""
-    try:
-        bucket = get_storage_bucket()
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f"{student_name}_{timestamp}.wav"
-        blob_path = f"student_audio/{access_code}/{filename}"
-        
-        blob = bucket.blob(blob_path)
-        blob.upload_from_string(audio_bytes, content_type="audio/wav")
-        
-        # 다운로드 URL 생성
-        url = blob.public_url
-        return url, filename
-    except Exception as e:
-        st.error(f"오디오 업로드 오류: {e}")
-        return None, None
-
-
-def save_submission(access_code, student_name, audio_url, audio_filename, score=0):
-    """Firestore submissions 컬렉션에 제출 데이터 저장"""
-    try:
-        db = get_firestore_client()
-        submission_data = {
-            "access_code": access_code,
-            "student_name": student_name,
-            "audio_url": audio_url,
-            "audio_filename": audio_filename,
-            "submitted_at": datetime.now(),
-            "score": score
-        }
-        db.collection("submissions").add(submission_data)
-        return True
-    except Exception as e:
-        st.error(f"제출 저장 오류: {e}")
-        return False
-
-
-def get_all_assignment_codes():
-    """모든 과제 코드 조회"""
-    try:
-        db = get_firestore_client()
-        docs = db.collection("assignments").stream()
-        codes = [doc.id for doc in docs]
-        return codes
-    except Exception as e:
-        st.error(f"과제 코드 조회 오류: {e}")
-        return []
-
-
-def get_submissions_for_code(code):
-    """특정 코드의 모든 제출 데이터 조회"""
-    try:
-        db = get_firestore_client()
-        submissions = []
-        docs = db.collection("submissions").where(
-            "access_code", "==", code
-        ).stream()
-        
-        for doc in docs:
-            submissions.append(doc.to_dict())
-        
-        return submissions
-    except Exception as e:
-        st.error(f"제출 데이터 조회 오류: {e}")
-        return []
 
 
 def logout():
@@ -514,15 +225,522 @@ def logout():
 
 
 # ============================================================================
-# 3. LOGIN PAGE
+# 3. QUIZ & MISSION FUNCTIONS
+# ============================================================================
+
+def generate_simple_quiz(text_content, unit_title, difficulty):
+    """
+    지문을 기반으로 3가지 객관식 퀴즈 문제를 생성합니다.
+    (ReadFit용 간단한 퀴즈)
+    """
+    difficulty_label = "Beginner" if "Beginner" in difficulty else "Intermediate" if "Intermediate" in difficulty else "Advanced"
+    
+    quiz_questions = {
+        "Unit 1 - My Lifelogging": {
+            "Beginner": [
+                {
+                    "question": "What does Harin like to do?",
+                    "options": ["She likes to run", "She likes to swim", "She likes to dance"],
+                    "answer": 0
+                },
+                {
+                    "question": "What does Mike post on social media?",
+                    "options": ["Food pictures", "Pictures of his clothes", "Travel photos"],
+                    "answer": 1
+                },
+                {
+                    "question": "What is Elena's favorite snack?",
+                    "options": ["Cookies", "Donuts", "Ice cream"],
+                    "answer": 1
+                }
+            ],
+            "Intermediate": [
+                {
+                    "question": "What information does Harin's running app record?",
+                    "options": ["Only distance", "Speed, time, and steps", "Only calories"],
+                    "answer": 1
+                },
+                {
+                    "question": "How does Mike describe his fashion photos?",
+                    "options": ["His fashion diary", "His hobby collection", "His art project"],
+                    "answer": 0
+                },
+                {
+                    "question": "What app does Elena use to find donut shops?",
+                    "options": ["A social media app", "A map app", "A food review app"],
+                    "answer": 1
+                }
+            ],
+            "Advanced": [
+                {
+                    "question": "What does Harin's tracking method exemplify?",
+                    "options": ["Traditional fitness training", "The quantified self-movement", "Competitive sports preparation"],
+                    "answer": 1
+                },
+                {
+                    "question": "What does Mike's fashion documentation represent?",
+                    "options": ["Simple photography practice", "Artistic self-expression and identity construction", "Professional fashion design"],
+                    "answer": 1
+                },
+                {
+                    "question": "What contemporary phenomenon does Elena's activity exemplify?",
+                    "options": ["Traditional restaurant dining", "Food-focused lifelogging", "Professional food criticism"],
+                    "answer": 1
+                }
+            ]
+        },
+        "Unit 2 - Fun School Events Around the World": {
+            "Beginner": [
+                {
+                    "question": "How far do students run on Cross Country Race Day in New Zealand?",
+                    "options": ["2 kilometers", "4 kilometers", "6 kilometers"],
+                    "answer": 1
+                },
+                {
+                    "question": "When is National Language Month in the Philippines?",
+                    "options": ["July", "August", "September"],
+                    "answer": 1
+                },
+                {
+                    "question": "What instrument will the student play in the USA concert?",
+                    "options": ["Piano", "Violin", "Guitar"],
+                    "answer": 1
+                }
+            ],
+            "Intermediate": [
+                {
+                    "question": "What does the cross country course in New Zealand have?",
+                    "options": ["Flat roads only", "Small hills and lots of trees", "Swimming sections"],
+                    "answer": 1
+                },
+                {
+                    "question": "How many languages are spoken in the Philippines?",
+                    "options": ["Over 50", "Over 100", "Over 200"],
+                    "answer": 1
+                },
+                {
+                    "question": "What is the topic of Korea's digital writing contest?",
+                    "options": ["Summer vacation", "School campus in spring", "Family traditions"],
+                    "answer": 1
+                }
+            ],
+            "Advanced": [
+                {
+                    "question": "What does cross country running cultivate besides physical stamina?",
+                    "options": ["Only speed improvement", "Mental resilience and strategic pacing abilities", "Dancing skills"],
+                    "answer": 1
+                },
+                {
+                    "question": "What do the Filipino language events serve to do?",
+                    "options": ["Replace English education", "Preserve and promote linguistic heritage", "Teach foreign languages"],
+                    "answer": 1
+                },
+                {
+                    "question": "What skills does Korea's digital writing contest develop?",
+                    "options": ["Only writing skills", "Digital literacy, creative writing, and visual composition", "Only photography skills"],
+                    "answer": 1
+                }
+            ]
+        },
+        "Unit 3 - The Power of Small Acts": {
+            "Beginner": [
+                {
+                    "question": "Where did Jimin and Sora go?",
+                    "options": ["To the zoo", "To the amusement park", "To the museum"],
+                    "answer": 1
+                },
+                {
+                    "question": "What hit Jimin's back on the subway?",
+                    "options": ["A ball", "A backpack", "An umbrella"],
+                    "answer": 1
+                },
+                {
+                    "question": "What did the girls buy in the gift shop?",
+                    "options": ["T-shirts", "Hairbands with rabbit ears", "Toys"],
+                    "answer": 1
+                }
+            ],
+            "Intermediate": [
+                {
+                    "question": "What happened when they stood in line for the roller coaster?",
+                    "options": ["Someone cut in line", "The ride broke down", "They gave up waiting"],
+                    "answer": 0
+                },
+                {
+                    "question": "Who held the door for the girls at the gift shop?",
+                    "options": ["A store employee", "A nice man", "Their friend"],
+                    "answer": 1
+                },
+                {
+                    "question": "Why couldn't Jimin and Sora see the stage at the magic show?",
+                    "options": ["They arrived late", "Two boys with rabbit ears sat in front", "The lights were off"],
+                    "answer": 1
+                }
+            ],
+            "Advanced": [
+                {
+                    "question": "What public service announcement was made on the subway?",
+                    "options": ["Stand behind the yellow line", "Wear your backpack on the front", "Give up seats to elderly"],
+                    "answer": 1
+                },
+                {
+                    "question": "What did Jimin conclude about small acts?",
+                    "options": ["They don't matter much", "They possess substantial power to influence others", "They only affect yourself"],
+                    "answer": 1
+                },
+                {
+                    "question": "What does the story emphasize about considerate conduct?",
+                    "options": ["It's only important at home", "It contributes to collective well-being and social cohesion", "It's unnecessary in public"],
+                    "answer": 1
+                }
+            ]
+        },
+        "Unit 4 - My Family Tradition": {
+            "Beginner": [
+                {
+                    "question": "Where is Yubin's father from?",
+                    "options": ["Korea", "India", "China"],
+                    "answer": 1
+                },
+                {
+                    "question": "When does Yubin's family go to the baseball park?",
+                    "options": ["Every spring", "Every summer", "Every winter"],
+                    "answer": 0
+                },
+                {
+                    "question": "What game does the family play after dinner?",
+                    "options": ["Chess", "Pachisi", "Cards"],
+                    "answer": 1
+                }
+            ],
+            "Intermediate": [
+                {
+                    "question": "What are both of Yubin's parents' jobs?",
+                    "options": ["Teachers", "Computer engineers", "Doctors"],
+                    "answer": 1
+                },
+                {
+                    "question": "What is Yubin's father's favorite dish?",
+                    "options": ["Korean kimchi", "Indian chicken curry", "Chinese noodles"],
+                    "answer": 1
+                },
+                {
+                    "question": "Where does the special curry powder come from?",
+                    "options": ["A local store", "Yubin's grandmother in India", "A restaurant"],
+                    "answer": 1
+                }
+            ],
+            "Advanced": [
+                {
+                    "question": "What does opening day attendance represent for the family?",
+                    "options": ["Just entertainment", "A familial bonding experience and celebration of Korean cultural participation", "A business meeting"],
+                    "answer": 1
+                },
+                {
+                    "question": "What functions does the game pachisi serve?",
+                    "options": ["Only entertainment", "Entertainment, strategic thinking development, and cultural transmission", "Physical exercise"],
+                    "answer": 1
+                },
+                {
+                    "question": "What do family traditions provide according to the passage?",
+                    "options": ["Only fun memories", "Continuity, meaning, and a sense of belonging", "Extra work for family members"],
+                    "answer": 1
+                }
+            ]
+        }
+    }
+    
+    # 기본값 제공
+    if unit_title not in quiz_questions:
+        return [
+            {
+                "question": f"What is the main topic of {unit_title}?",
+                "options": ["Option 1", "Option 2", "Option 3"],
+                "answer": 0
+            },
+            {
+                "question": "What is the key content of the passage?",
+                "options": ["Content 1", "Content 2", "Content 3"],
+                "answer": 0
+            },
+            {
+                "question": "What is important regarding this topic?",
+                "options": ["Perspective 1", "Perspective 2", "Perspective 3"],
+                "answer": 0
+            }
+        ]
+    
+    return quiz_questions.get(unit_title, {}).get(difficulty_label, [])
+
+
+def get_mission_info():
+    """미션 정보 반환"""
+    missions = [
+        {
+            "id": "image_detective",
+            "title": "🎨 이미지 탐정",
+            "difficulty": "하",
+            "description": "그림을 보고 단어를 맞춰보세요!",
+            "emoji": "🎨"
+        },
+        {
+            "id": "mystery_20_questions",
+            "title": "🕵️ 미스터리 스무고개",
+            "difficulty": "중",
+            "description": "AI의 힌트를 듣고 단어를 추리하세요!",
+            "emoji": "🕵️"
+        },
+        {
+            "id": "writer",
+            "title": "✍️ 베스트셀러 작가",
+            "difficulty": "상",
+            "description": "뒷이야기를 상상해서 써보세요!",
+            "emoji": "✍️"
+        }
+    ]
+    return missions
+
+
+# ============================================================================
+# 4. STEP FUNCTIONS FOR 4-STEP FLOW
+# ============================================================================
+
+def show_step1_quiz(assignment_data):
+    """Step 1: 퀴즈 풀기"""
+    st.header("Step 1️⃣ 퀴즈 풀기")
+    
+    st.subheader("📖 지문")
+    st.text_area(
+        "지문 내용",
+        value=assignment_data.get("text", ""),
+        height=150,
+        disabled=True,
+        key="quiz_text_display"
+    )
+    
+    st.divider()
+    st.subheader("❓ 객관식 문제")
+    
+    quiz_questions = assignment_data.get("quiz", [])
+    
+    if not quiz_questions:
+        st.error("퀴즈 데이터를 불러올 수 없습니다.")
+        return None
+    
+    st.session_state.quiz_answers = []
+    
+    for idx, q in enumerate(quiz_questions):
+        st.write(f"**{idx+1}. {q['question']}**")
+        answer = st.radio(
+            "정답 선택",
+            options=q['options'],
+            key=f"quiz_{idx}"
+        )
+        st.session_state.quiz_answers.append({
+            "question": q['question'],
+            "selected": answer,
+            "correct": q['options'][q['answer']],
+            "is_correct": answer == q['options'][q['answer']]
+        })
+        st.divider()
+    
+    if st.button("✅ 정답 제출하기", use_container_width=True, key="submit_quiz"):
+        correct_count = sum(1 for a in st.session_state.quiz_answers if a['is_correct'])
+        total_count = len(st.session_state.quiz_answers)
+        score = int((correct_count / total_count) * 100) if total_count > 0 else 0
+        
+        st.session_state.quiz_score = score
+        st.session_state.quiz_correct = correct_count
+        st.session_state.quiz_total = total_count
+        st.session_state.step = 2
+        st.success(f"✅ 제출 완료! 점수: {score}점 ({correct_count}/{total_count})")
+        st.rerun()
+
+
+def show_step2_mission_selection(quiz_score):
+    """Step 2: 미션 선택"""
+    st.header("Step 2️⃣ 활동 선택")
+    
+    st.info(f"📊 **당신의 퀴즈 점수: {quiz_score}점**")
+    
+    if quiz_score >= 80:
+        recommended_mission = "베스트셀러 작가 (상)"
+        recommended_id = "writer"
+    elif quiz_score >= 60:
+        recommended_mission = "미스터리 스무고개 (중)"
+        recommended_id = "mystery_20_questions"
+    else:
+        recommended_mission = "이미지 탐정 (하)"
+        recommended_id = "image_detective"
+    
+    st.write(f"🤖 **AI 추천**: {recommended_mission}")
+    st.divider()
+    
+    missions = get_mission_info()
+    cols = st.columns(3)
+    
+    for idx, mission in enumerate(missions):
+        with cols[idx]:
+            is_recommended = mission['id'] == recommended_id
+            
+            if is_recommended:
+                st.markdown(
+                    f"""<div style="border: 3px solid #FFD700; border-radius: 12px; padding: 16px; text-align: center; background: rgba(255, 215, 0, 0.1);">
+                        <div style="font-size: 40px; margin-bottom: 8px;">{mission['emoji']}</div>
+                        <div style="font-weight: bold; font-size: 16px; margin-bottom: 8px;">{mission['title']}</div>
+                        <div style="font-size: 12px; color: #666; margin-bottom: 8px;">난이도: {mission['difficulty']}</div>
+                        <div style="font-size: 13px; margin-bottom: 12px;">{mission['description']}</div>
+                        <div style="background: #FFD700; color: black; padding: 4px 8px; border-radius: 6px; font-size: 11px; font-weight: bold; display: inline-block; margin-bottom: 12px;">👍 AI 추천</div>
+                    </div>""",
+                    unsafe_allow_html=True
+                )
+            else:
+                st.markdown(
+                    f"""<div style="border: 2px solid #e2e8f0; border-radius: 12px; padding: 16px; text-align: center;">
+                        <div style="font-size: 40px; margin-bottom: 8px;">{mission['emoji']}</div>
+                        <div style="font-weight: bold; font-size: 16px; margin-bottom: 8px;">{mission['title']}</div>
+                        <div style="font-size: 12px; color: #666; margin-bottom: 8px;">난이도: {mission['difficulty']}</div>
+                        <div style="font-size: 13px;">{mission['description']}</div>
+                    </div>""",
+                    unsafe_allow_html=True
+                )
+            
+            if st.button(f"선택하기", key=f"mission_{mission['id']}", use_container_width=True):
+                st.session_state.selected_mission = mission['id']
+                st.session_state.selected_mission_title = mission['title']
+                st.session_state.step = 3
+                st.rerun()
+
+
+def show_step3_activity(selected_mission):
+    """Step 3: 활동 수행"""
+    st.header("Step 3️⃣ 활동 수행")
+    
+    mission_title_map = {
+        "image_detective": "🎨 이미지 탐정",
+        "mystery_20_questions": "🕵️ 미스터리 스무고개",
+        "writer": "✍️ 베스트셀러 작가"
+    }
+    
+    st.subheader(mission_title_map.get(selected_mission, "활동"))
+    
+    if selected_mission == "image_detective":
+        st.write("📷 **그림을 보고 단어를 맞춰보세요!**")
+        st.info("(데모용 이미지 플레이스홀더)")
+        answer = st.text_input("정답을 입력하세요:", key="image_detective_answer")
+        if st.button("정답 제출하기", use_container_width=True, key="submit_image"):
+            st.session_state.activity_answer = answer
+            st.session_state.activity_score = 50
+            st.session_state.step = 4
+            st.rerun()
+    
+    elif selected_mission == "mystery_20_questions":
+        st.write("💡 **AI의 힌트를 듣고 단어를 추리하세요!**")
+        with st.expander("💬 AI 힌트 보기"):
+            st.write("• 이것은 동물입니다.")
+            st.write("• 이것은 4개의 다리가 있습니다.")
+            st.write("• 이것은 'Dog'입니다.")
+        answer = st.text_input("정답을 입력하세요:", key="mystery_answer")
+        if st.button("정답 제출하기", use_container_width=True, key="submit_mystery"):
+            st.session_state.activity_answer = answer
+            st.session_state.activity_score = 70
+            st.session_state.step = 4
+            st.rerun()
+    
+    elif selected_mission == "writer":
+        st.write("✍️ **뒷이야기를 상상해서 써보세요!**")
+        st.caption("(200자 이상 작성 권장)")
+        story = st.text_area(
+            "이야기 작성",
+            height=200,
+            placeholder="뒷이야기를 상상해서 입력하세요...",
+            key="writer_story"
+        )
+        if st.button("작품 제출하기", use_container_width=True, key="submit_writer"):
+            if len(story.strip()) > 0:
+                st.session_state.activity_answer = story
+                st.session_state.activity_score = 85
+                st.session_state.step = 4
+                st.rerun()
+            else:
+                st.error("최소 1자 이상 작성해주세요.")
+
+
+def show_step4_report(quiz_score, activity_score, selected_mission_title):
+    """Step 4: 최종 리포트"""
+    st.header("Step 4️⃣ 최종 리포트")
+    
+    total_score = int((quiz_score * 0.4 + activity_score * 0.6))
+    
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        st.metric("📝 퀴즈 점수", f"{st.session_state.quiz_score}점")
+    
+    with col2:
+        st.metric("🎯 활동 점수", f"{activity_score}점")
+    
+    with col3:
+        st.metric("⭐ 최종 점수", f"{total_score}점")
+    
+    st.divider()
+    
+    st.markdown(
+        f"""<div style="text-align: center; padding: 24px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+                    border-radius: 12px; color: white;">
+            <div style="font-size: 48px; margin-bottom: 16px;">🎉</div>
+            <div style="font-size: 28px; font-weight: bold; margin-bottom: 8px;">참 잘했어요!</div>
+            <div style="font-size: 16px; margin-bottom: 16px;">오늘 학습을 완료했습니다!</div>
+            <div style="font-size: 14px;">선택한 활동: {selected_mission_title}</div>
+        </div>""",
+        unsafe_allow_html=True
+    )
+    
+    st.divider()
+    
+    st.subheader("📊 오늘의 학습 요약")
+    summary_col1, summary_col2 = st.columns(2)
+    
+    with summary_col1:
+        st.write("✅ **완료한 활동:**")
+        st.write(f"• 퀴즈: {st.session_state.quiz_correct}/{st.session_state.quiz_total} 정답")
+        st.write(f"• {selected_mission_title} 완료")
+    
+    with summary_col2:
+        st.write("📈 **학습 결과:**")
+        st.write(f"• 총 점수: **{total_score}점**")
+        if total_score >= 80:
+            st.write("• 레벨: 🌟 우수")
+        elif total_score >= 60:
+            st.write("• 레벨: ⭐ 좋음")
+        else:
+            st.write("• 레벨: 🔄 다시 도전")
+    
+    st.divider()
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        if st.button("🏠 메인으로 돌아가기", use_container_width=True, key="back_to_main"):
+            st.session_state.step = 0
+            st.rerun()
+    
+    with col2:
+        if st.button("🔄 다시 풀기", use_container_width=True, key="retry"):
+            st.session_state.step = 1
+            st.rerun()
+
+
+# ============================================================================
+# 5. LOGIN PAGE
 # ============================================================================
 
 def show_login_page():
     """로그인 페이지 표시"""
     apply_global_styles()
     
-    st.markdown("<div class='login-hero'><h1>📚 AI English Learning Platform</h1></div>", unsafe_allow_html=True)
-    st.markdown("<div class='login-sub'>AI 평가 지문 생성 & 퀴즈 마스터</div>", unsafe_allow_html=True)
+    st.markdown("<div class='login-hero'><h1>📚 ReadFit</h1></div>", unsafe_allow_html=True)
+    st.markdown("<div class='login-sub'>영어 학습 플랫폼 - 퀴즈 & 활동으로 영어 실력 UP!</div>", unsafe_allow_html=True)
     
     col1, col2, col3 = st.columns([0.8, 1.4, 0.8])
     
@@ -542,7 +760,6 @@ def show_login_page():
                     st.error("비밀번호를 입력해주세요.")
                 else:
                     try:
-                        # Firebase Authentication으로 로그인
                         auth_result = authenticate_teacher(teacher_email, teacher_pw)
                         
                         if auth_result["success"]:
@@ -570,7 +787,6 @@ def show_login_page():
                 elif not access_code.isdigit() or len(access_code) != 6:
                     st.error("학습 코드는 6자리 숫자여야 합니다.")
                 else:
-                    # Firestore에서 코드 확인
                     if check_access_code_exists(access_code):
                         st.session_state.is_logged_in = True
                         st.session_state.user_role = "student"
@@ -583,339 +799,221 @@ def show_login_page():
 
 
 # ============================================================================
-# 4. TEACHER DASHBOARD
+# 6. TEACHER DASHBOARD
 # ============================================================================
 
 def show_teacher_dashboard():
-    """교사 대시보드"""
+    """교사 대시보드 - ReadFit 버전"""
+    apply_global_styles()
     st.title("🎓 교사 대시보드")
     
     # 사이드바 메뉴
     with st.sidebar:
         st.write(f"### 👤 {st.session_state.user_name}")
-        st.write(f"**역할**: 교사")
+        st.write("**역할**: 교사")
         st.divider()
         
-        menu = st.radio(
-            "메뉴 선택",
-            ["과제 만들기", "학습 결과 확인"],
-            key="teacher_menu"
-        )
-        
-        st.divider()
         if st.button("로그아웃", use_container_width=True):
             logout()
     
-    # ===== 과제 만들기 =====
-    if menu == "과제 만들기":
-        st.markdown("<div class='card'>", unsafe_allow_html=True)
-        show_create_assignment()
-        st.markdown("</div>", unsafe_allow_html=True)
-    
-    # ===== 학습 결과 확인 =====
-    elif menu == "학습 결과 확인":
-        st.markdown("<div class='card'>", unsafe_allow_html=True)
-        show_check_results()
-        st.markdown("</div>", unsafe_allow_html=True)
-
-
-def show_create_assignment():
-    """과제 만들기 페이지 - YBM 교과서 단원 선택 및 AI 자동 퀴즈 생성"""
-    st.subheader("📝 과제 만들기")
-    
-    st.info("💡 YBM 교과서 단원을 선택하고 난이도를 설정하면 자동으로 지문과 퀴즈가 로드됩니다.")
+    st.subheader("📚 ReadFit - 과제 생성")
     
     col1, col2 = st.columns(2)
     
     with col1:
-        # 단원 선택
         selected_unit = st.selectbox(
             "📖 단원 선택",
             list(YBM_TEXTBOOK.keys()),
-            key="unit_select"
+            key="teacher_unit_select"
         )
     
     with col2:
-        # 난이도 선택
         difficulty = st.selectbox(
             "📊 난이도 선택",
             ["Beginner (초급)", "Intermediate (중급)", "Advanced (고급)"],
-            key="assignment_difficulty_select"
+            key="teacher_difficulty_select"
         )
     
     st.divider()
     
-    # 난이도에 따른 지문 자동 로드
+    # 선택된 지문과 퀴즈 미리보기
     unit_data = YBM_TEXTBOOK[selected_unit]
     unit_title = unit_data["title"]
-    
-    # 난이도별 지문 선택
-    difficulty_key = difficulty.split()[0]  # "Beginner", "Intermediate", "Advanced" 추출
+    difficulty_key = difficulty.split()[0]
     text_content = unit_data[difficulty_key]
     
-    # 선택된 지문 표시
     st.subheader(f"🎯 {unit_title} ({difficulty})")
+    
+    # 디버그 정보
+    with st.expander("🔍 디버그 정보", expanded=True):
+        st.write(f"**선택된 단원**: `{selected_unit}`")
+        st.write(f"**선택된 난이도**: `{difficulty}`")
+        st.write(f"**추출된 난이도 키**: `{difficulty_key}`")
+        st.write(f"**사용 가능한 난이도 키들**: `{list(unit_data.keys())}`")
+        st.write(f"**지문 길이**: {len(text_content)} 글자")
+        st.write(f"**지문 시작 100자**: {text_content[:100]}...")
+    
+    # 지문 미리보기
+    st.markdown("### 📖 지문 내용")
     st.text_area(
-        "📄 지문 내용 (자동 로드됨)",
+        "학생들에게 제공될 지문",
         value=text_content,
         height=200,
         disabled=True,
-        key="display_text"
+        key=f"preview_text_{difficulty_key}"
     )
     
     st.divider()
     
-    # AI 자동 퀴즈 생성
-    st.subheader("🤖 AI 자동 생성 퀴즈")
-    st.info("아래 3가지 유형의 퀴즈가 자동으로 생성되었습니다.")
+    # 퀴즈 미리보기
+    st.markdown("### ❓ 자동 생성 퀴즈 (미리보기)")
+    quiz_questions = generate_simple_quiz(text_content, unit_title, difficulty)
     
-    # AI 퀴즈 생성
-    ai_quiz = generate_ai_quiz(text_content, unit_title, difficulty)
-    
-    # 퀴즈 표시 (3가지 유형)
-    quiz_col1, quiz_col2, quiz_col3 = st.columns(3)
-    
-    with quiz_col1:
-        st.markdown(f"### {ai_quiz['summary']['type']}")
-        st.write(ai_quiz['summary']['question'])
-    
-    with quiz_col2:
-        st.markdown(f"### {ai_quiz['theme']['type']}")
-        st.write(ai_quiz['theme']['question'])
-    
-    with quiz_col3:
-        st.markdown(f"### {ai_quiz['title']['type']}")
-        st.write(ai_quiz['title']['question'])
+    for idx, q in enumerate(quiz_questions):
+        with st.expander(f"문제 {idx+1}: {q['question']}"):
+            st.write(f"**선택지:**")
+            for opt_idx, option in enumerate(q['options']):
+                if opt_idx == q['answer']:
+                    st.write(f"- ✅ {option} **(정답)**")
+                else:
+                    st.write(f"- {option}")
     
     st.divider()
     
-    # 추가 퀴즈 작성 (선택사항)
-    st.subheader("✏️ 추가 문제 작성 (선택사항)")
-    st.caption("위의 AI 생성 퀴즈 외에 추가 문제를 작성하고 싶으신 경우 아래에 입력하세요.")
+    # 과제 생성 버튼
+    st.markdown("### 🚀 과제 배포")
+    st.caption("위의 지문과 퀴즈를 확인하셨다면 아래 버튼을 눌러 과제를 생성하세요.")
     
-    with st.form("create_assignment_form"):
-        additional_quiz = st.text_area(
-            "추가 문제",
-            height=100,
-            key="assignment_quiz",
-            placeholder="추가로 작성할 문제가 있으면 입력하세요... (선택사항)"
-        )
+    if st.button("✅ 과제 생성 및 배포", use_container_width=True, type="primary", key="create_assignment_btn"):
+        access_code = generate_access_code()
         
-        submitted = st.form_submit_button("✅ 과제 생성 및 배포", use_container_width=True)
-        
-        if submitted:
-            # 6자리 코드 생성
-            access_code = generate_access_code()
-            
-            # AI 퀴즈와 추가 퀴즈 병합
-            full_quiz = f"""
-【AI 자동 생성 퀴즈】
-
-1️⃣ {ai_quiz['summary']['type']}
-{ai_quiz['summary']['question']}
-
-2️⃣ {ai_quiz['theme']['type']}
-{ai_quiz['theme']['question']}
-
-3️⃣ {ai_quiz['title']['type']}
-{ai_quiz['title']['question']}
-"""
-            
-            if additional_quiz.strip():
-                full_quiz += f"\n【추가 문제】\n{additional_quiz}"
-            
-            # Firestore에 저장
+        try:
+            db = get_firestore_client()
             assignment_data = {
-                "title": unit_title,
-                "text_content": text_content,
+                "unit": selected_unit,
                 "difficulty": difficulty,
-                "quiz": full_quiz,
+                "access_code": access_code,
+                "text": text_content,
+                "quiz": quiz_questions,
                 "teacher_name": st.session_state.user_name,
-                "unit": selected_unit
+                "created_at": datetime.now()
             }
+            db.collection("readfit_assignments").document(access_code).set(assignment_data)
             
-            if save_assignment(access_code, assignment_data):
-                st.success(
-                    f"✅ 과제가 생성되었습니다!\n\n"
-                    f"**학생들에게 이 코드를 알려주세요: `{access_code}`**\n\n"
-                    f"📚 단원: {unit_title}\n"
-                    f"📊 난이도: {difficulty}\n"
-                    f"❓ 문제: AI 자동 생성 (3가지) + 추가 문제" + ("" if not additional_quiz.strip() else " (수동 작성)")
-                )
-                st.balloons()
-            else:
-                st.error("과제 저장에 실패했습니다. 다시 시도해주세요.")
-
-
-def show_check_results():
-    """학습 결과 확인 페이지"""
-    st.subheader("📊 학습 결과 확인")
-    
-    # 생성된 과제 코드 조회
-    assignment_codes = get_all_assignment_codes()
-    
-    if not assignment_codes:
-        st.info("생성된 과제가 없습니다.")
-        return
-    
-    selected_code = st.selectbox(
-        "과제 코드 선택",
-        assignment_codes,
-        key="result_code_select"
-    )
-    
-    if selected_code:
-        # 과제 정보 표시
-        assignment = get_assignment_data(selected_code)
-        if assignment:
-            st.write(f"**단원명**: {assignment.get('title', 'N/A')}")
-            st.write(f"**난이도**: {assignment.get('difficulty', 'N/A')}")
-            st.divider()
-        
-        # 제출 데이터 조회
-        submissions = get_submissions_for_code(selected_code)
-        
-        if not submissions:
-            st.info("제출된 학습이 아직 없습니다.")
-        else:
-            st.write(f"**제출 현황**: {len(submissions)}명")
-            
-            # 테이블 형식으로 표시
-            submission_data = []
-            for sub in submissions:
-                submission_data.append({
-                    "학생 이름": sub.get("student_name", "N/A"),
-                    "제출 시간": sub.get("submitted_at").strftime("%Y-%m-%d %H:%M:%S") 
-                                  if sub.get("submitted_at") else "N/A",
-                    "점수": sub.get("score", 0),
-                    "오디오 URL": sub.get("audio_url", "N/A")
-                })
-            
-            # 테이블 표시
-            st.dataframe(submission_data, use_container_width=True)
-            
-            st.divider()
-            st.subheader("오디오 재생")
-            
-            # 각 제출에 대한 오디오 플레이어
-            for idx, sub in enumerate(submissions):
-                col1, col2 = st.columns([2, 3])
-                with col1:
-                    st.write(f"**{sub.get('student_name', 'Unknown')}**")
-                with col2:
-                    if sub.get("audio_url"):
-                        try:
-                            st.audio(sub.get("audio_url"), format="audio/wav")
-                        except Exception as e:
-                            st.warning(f"오디오 로드 실패: {e}")
-                    else:
-                        st.write("오디오 없음")
+            st.success(f"✅ 과제가 생성되었습니다!\n\n**학생 접근 코드: `{access_code}`**")
+            st.info(
+                f"📚 **단원**: {unit_title}\n"
+                f"📊 **난이도**: {difficulty}\n"
+                f"❓ **문제 수**: 3개 (객관식)"
+            )
+            st.balloons()
+        except Exception as e:
+            st.error(f"과제 생성 실패: {str(e)}")
 
 
 # ============================================================================
-# 5. STUDENT WORKSPACE
+# 7. STUDENT WORKSPACE
 # ============================================================================
 
 def show_student_workspace():
-    """학생 워크스페이스"""
+    """학생 워크스페이스 - ReadFit 4-step 플로우"""
+    apply_global_styles()
     st.title("👨‍🎓 학생 학습 공간")
     
     # 사이드바
     with st.sidebar:
         st.write(f"### 👤 {st.session_state.user_name}")
-        st.write(f"**역할**: 학생")
+        st.write("**역할**: 학생")
         st.write(f"**학습 코드**: {st.session_state.current_access_code}")
+        
+        # 진행 상황 표시
+        if hasattr(st.session_state, 'step'):
+            step_labels = {
+                0: "📚 대기 중",
+                1: "❓ Step 1 - 퀴즈",
+                2: "🎯 Step 2 - 활동 선택",
+                3: "🎪 Step 3 - 활동 수행",
+                4: "🏆 Step 4 - 최종 리포트"
+            }
+            st.write(f"**진행도**: {step_labels.get(st.session_state.step, '시작')}")
+        
         st.divider()
         
         if st.button("로그아웃", use_container_width=True):
             logout()
     
-    # 과제 데이터 로드
-    assignment = get_assignment_data(st.session_state.current_access_code)
+    # Step 초기화
+    if 'step' not in st.session_state:
+        st.session_state.step = 1
+    
+    # ReadFit 컬렉션에서 과제 데이터 로드
+    try:
+        db = get_firestore_client()
+        doc = db.collection("readfit_assignments").document(st.session_state.current_access_code).get()
+        if doc.exists:
+            assignment = doc.to_dict()
+        else:
+            st.error("과제를 불러올 수 없습니다.")
+            return
+    except Exception as e:
+        st.error(f"데이터 로드 오류: {str(e)}")
+        return
     
     if not assignment:
         st.error("과제 정보를 불러올 수 없습니다.")
         return
     
-    # ===== 과제 정보 표시 =====
+    # 📚 지문 정보 표시
     st.markdown("<div class='card'>", unsafe_allow_html=True)
     col1, col2 = st.columns(2)
     with col1:
-        st.subheader(assignment.get("title", "제목 없음"))
+        st.subheader(assignment.get("unit", "제목 없음"))
     with col2:
         st.metric("난이도", assignment.get("difficulty", "N/A"))
     st.markdown("</div>", unsafe_allow_html=True)
     
-    st.markdown("<div class='card'>", unsafe_allow_html=True)
-    st.subheader("📖 영어 지문")
-    st.text_area(
-        "지문 내용",
-        value=assignment.get("text_content", ""),
-        height=200,
-        disabled=True,
-        key="text_display"
-    )
-    st.markdown("</div>", unsafe_allow_html=True)
+    # 4-step 플로우 실행
+    if st.session_state.step == 1:
+        show_step1_quiz(assignment)
     
-    st.markdown("<div class='card'>", unsafe_allow_html=True)
-    st.subheader("🎙️ 쉐도잉 녹음")
-    st.info(
-        "💡 **지문을 큰 소리로 읽고 녹음하세요.**\n\n"
-        "자연스러운 발음과 억양으로 읽으시면 더 좋은 평가를 받을 수 있습니다."
-    )
+    elif st.session_state.step == 2:
+        show_step2_mission_selection(st.session_state.quiz_score)
     
-    st.subheader("🎵 오디오 파일 업로드")
-    audio_file = st.file_uploader(
-        "녹음된 오디오 파일을 업로드하세요 (MP3, WAV, M4A 형식)",
-        type=["mp3", "wav", "m4a", "ogg"],
-        key="audio_upload"
-    )
+    elif st.session_state.step == 3:
+        show_step3_activity(st.session_state.selected_mission)
     
-    if audio_file is not None:
-        st.success("✅ 파일이 선택되었습니다!")
-        st.audio(audio_file)
-        
-        if st.button("📤 제출하기", use_container_width=True, key="submit_audio"):
-            with st.spinner("업로드 중..."):
-                try:
-                    audio_bytes = audio_file.read()
-                    audio_url, filename = upload_audio_to_storage(
-                        audio_bytes,
-                        st.session_state.current_access_code,
-                        st.session_state.user_name
-                    )
-                    if audio_url:
-                        if save_submission(
-                            st.session_state.current_access_code,
-                            st.session_state.user_name,
-                            audio_url,
-                            filename
-                        ):
-                            st.success("✅ 제출이 완료되었습니다!")
-                            st.balloons()
-                            st.session_state.submitted = True
-                        else:
-                            st.error("제출 저장에 실패했습니다.")
-                    else:
-                        st.error("오디오 업로드에 실패했습니다.")
-                except Exception as e:
-                    st.error(f"❌ 오류가 발생했습니다: {str(e)}")
-    st.markdown("</div>", unsafe_allow_html=True)
-    
-    st.markdown("<div class='card'>", unsafe_allow_html=True)
-    st.subheader("❓ 학습 문제")
-    st.text_area(
-        "문제",
-        value=assignment.get("quiz", ""),
-        height=150,
-        disabled=True,
-        key="quiz_display"
-    )
-    st.markdown("</div>", unsafe_allow_html=True)
+    elif st.session_state.step == 4:
+        show_step4_report(
+            st.session_state.quiz_score,
+            st.session_state.activity_score,
+            st.session_state.selected_mission_title
+        )
 
 
 # ============================================================================
-# 6. MAIN APP LOGIC
+# 8. PAGE CONFIG & INITIALIZATION
+# ============================================================================
+
+st.set_page_config(
+    page_title="ReadFit - 영어 학습 플랫폼",
+    page_icon="📚",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
+# Session State 초기화
+if "is_logged_in" not in st.session_state:
+    st.session_state.is_logged_in = False
+if "user_role" not in st.session_state:
+    st.session_state.user_role = None
+if "user_name" not in st.session_state:
+    st.session_state.user_name = None
+if "current_access_code" not in st.session_state:
+    st.session_state.current_access_code = None
+
+
+# ============================================================================
+# 9. MAIN APP LOGIC
 # ============================================================================
 
 def main():
