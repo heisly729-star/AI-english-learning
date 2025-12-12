@@ -6,8 +6,11 @@ Streamlit + Firebase + OpenAI를 활용한 인터랙티브 영어 학습 도구
 import streamlit as st
 import random
 import string
+import os
 from datetime import datetime
-from openai import OpenAI
+# Note: OpenAI client import removed. The app does not currently
+# use OpenAI APIs, and importing the client caused a runtime error
+# if the package is not installed. Re-add only if needed.
 
 # ==========================================================================
 # GLOBAL STYLES (기존 유지)
@@ -138,26 +141,81 @@ def authenticate_teacher(email, password):
         return {"success": False, "error": f"인증 오류: {str(e)}"}
 
 
-# ============================================================================
-# OPENAI IMAGE GENERATION (새로 추가)
+# =========================================================================
+# IMAGE GENERATION (OpenAI 사용 + 안전한 폴백)
 # ============================================================================
 
 def generate_image_with_dalle(word):
-    """DALL-E 3를 사용하여 단어의 이미지 생성"""
+    """OpenAI로 먼저 생성, 실패 시 단계적 폴백."""
+    import base64
+
+    # 미니멀 폴백(1x1 PNG) - PIL도 없을 때 대비
+    tiny_png = base64.b64decode(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAuMBgQdX8FAAAAAASUVORK5CYII="
+    )
+
+    # 1) OpenAI 시도 (항상 실행, 키는 secrets에서 가져옴)
+    api_key = None
     try:
-        client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
-        response = client.images.generate(
-            model="dall-e-3",
-            prompt=f"Cute cartoon illustration of {word}, simple style, colorful, no text, kid-friendly",
-            size="1024x1024",
-            quality="standard",
-            n=1,
-        )
-        return response.data[0].url
+        api_key = st.secrets["OPENAI_API_KEY"]
     except Exception as e:
-        st.warning(f"이미지 생성 실패: {e}")
-        # Fallback 이미지
-        return f"https://source.unsplash.com/featured/1024x1024/?{word}"
+        st.error(f"OPENAI_API_KEY가 설정되지 않았습니다: {e}")
+
+    if api_key:
+        try:
+            from openai import OpenAI
+
+            client = OpenAI(api_key=api_key)
+            prompt = f"A colorful, kid-friendly illustration of '{word}', simple background"
+            result = client.images.generate(
+                model="dall-e-3",
+                prompt=prompt,
+                size="1024x1024",
+                response_format="b64_json"
+            )
+            b64_data = result.data[0].b64_json
+            if b64_data:
+                return base64.b64decode(b64_data)
+            else:
+                st.error("OpenAI에서 이미지 데이터가 없습니다")
+        except Exception as e:
+            st.error(f"OpenAI 이미지 생성 실패: {e}")
+
+    # 2) 외부 무료 이미지 서비스(picsum) 사용 시도
+    try:
+        from urllib.parse import quote
+        seed = quote(word)
+        return f"https://picsum.photos/seed/{seed}/640/360"
+    except Exception as e:
+        st.error(f"Picsum 로드 실패: {e}")
+
+    # 3) 폴백: 로컬 플레이스홀더 PNG 생성 (Pillow 필요)
+    try:
+        from PIL import Image, ImageDraw, ImageFont
+        import io
+
+        img = Image.new("RGB", (640, 360), color=(240, 243, 255))
+        draw = ImageDraw.Draw(img)
+        title = "Image Detective"
+        label = f"Guess: {word}"
+
+        try:
+            font_title = ImageFont.truetype("DejaVuSans-Bold.ttf", 32)
+            font_body = ImageFont.truetype("DejaVuSans.ttf", 24)
+        except Exception:
+            font_title = ImageFont.load_default()
+            font_body = ImageFont.load_default()
+
+        draw.text((40, 100), title, fill=(60, 60, 90), font=font_title)
+        draw.text((40, 180), label, fill=(80, 90, 120), font=font_body)
+
+        buf = io.BytesIO()
+        img.save(buf, format="PNG")
+        buf.seek(0)
+        return buf.getvalue()
+    except Exception as e:
+        st.error(f"로컬 이미지 생성 실패: {e}")
+        return tiny_png
 
 
 # ============================================================================
@@ -214,11 +272,26 @@ YBM_TEXTBOOK = {
         "title": "Unit 1 - My Lifelogging",
         "Beginner": "Hi! I am Harin. I like to run. I run in the park every day. The air is fresh and nice. I use a running app on my phone. It shows my speed and time. It also counts my steps. The app helps me a lot. Running makes me happy and healthy. Hello! My name is Mike. I love fashion and clothes. I take photos of my outfits every day. Then I post the pictures on social media. Many people follow me. They like my fashion posts. They write nice things about my clothes. I feel happy when they comment. This is my fashion diary. Hi! I am Elena. I really love donuts. They are so delicious. I go to donut shops on weekends. I use a map app to find good shops. I mark my favorite shops on the map. Then I go there again with my friends. We eat donuts together. Donuts make me very happy. They are my favorite snack. All three of us record our daily activities. We use apps and social media. This is called lifelogging. We share our hobbies with others. It is fun to keep records of what we do. Lifelogging helps us remember good times. We can look back and smile at our memories.",
         "Intermediate": "Hi, everyone! I'm Harin. I am an active person. I exercise a lot. I love running. I often run in the park, and I enjoy the fresh air there. I use a running app. It records my speed, time, and steps. It is very helpful. The app shows me how much I improve each day. I can see my progress over time. Sometimes I share my running records with my friends. They encourage me to keep going. Running is not just exercise for me. It is a way to clear my mind and feel energized. Hello! My name is Mike. I'm very interested in fashion. I take pictures of my clothes. Then, I post them on social media. These pictures are my fashion diary. I have many followers. They love my posts. They leave nice comments, too. Fashion is my passion and my way of expressing myself. Every morning, I choose my outfit carefully. I think about colors, styles, and trends. Taking photos helps me remember what I wore and how I felt that day. My followers give me ideas and feedback. We inspire each other with different fashion styles. My name is Elena. I'm into donuts these days. I visit donut shops in my free time. I mark good shops on my map app. Then, I visit them again with my friends. Donuts are not just a snack for me. They are my happiness! Each donut shop has unique flavors and recipes. I love trying new types of donuts. My map app helps me discover hidden gem shops in the city. When I find a great donut, I feel excited to share it with friends. We talk about the taste, texture, and toppings. These small moments bring us joy.",
-        "Advanced": "Greetings, everyone! I am Harin, and I consider myself a highly active individual with a strong commitment to physical fitness."
+        "Advanced": "Greetings, everyone! I am Harin, and I consider myself a highly active individual with a strong commitment to physical fitness. Running constitutes a significant aspect of my lifestyle. I frequently engage in running sessions at the local park, where I appreciate the invigorating fresh air and natural surroundings. To optimize my training regimen, I utilize a sophisticated running application that meticulously tracks various metrics including velocity, duration, and step count. This technology-driven approach provides valuable data that enables me to monitor my performance improvements over extended periods. The quantified self-movement, exemplified by such tracking methods, facilitates goal-setting and motivational reinforcement. Beyond the physiological benefits, running serves as a meditative practice that enhances my mental clarity and overall well-being. Greetings! My name is Mike, and I possess a profound interest in contemporary fashion and personal styling. I systematically document my daily attire through photography, subsequently sharing these images on various social media platforms. This curated collection functions as a comprehensive fashion diary that chronicles my evolving aesthetic sensibilities. I have cultivated a substantial following of individuals who engage enthusiastically with my content through comments and interactions. Fashion, for me, transcends mere clothing selection; it represents a form of artistic self-expression and identity construction. Each morning's outfit selection involves deliberate consideration of color theory, stylistic coherence, and current fashion trends. The digital documentation process allows for retrospective analysis of my fashion journey while simultaneously contributing to broader online fashion discourse. The reciprocal nature of social media engagement fosters a community of fashion enthusiasts who mutually inspire and influence one another. My name is Elena, and I have recently developed an intense fascination with artisanal donuts. I dedicate considerable leisure time to exploring various donut establishments throughout the metropolitan area. Employing a mapping application, I catalog noteworthy shops, creating a personalized gastronomic guide that facilitates future visits with companions. For me, donuts represent more than simple confectionery; they embody sources of genuine happiness and sensory pleasure. Each establishment offers distinctive flavor profiles and preparation techniques that reflect unique culinary philosophies. My systematic approach to discovering and documenting these experiences exemplifies the contemporary phenomenon of food-focused lifelogging. The integration of mobile technology with culinary exploration enhances social connectivity, as sharing these discoveries with friends creates memorable collective experiences centered around appreciation of quality craftsmanship in food preparation."
     },
-    "Unit 2": {"title": "Unit 2 - Fun School Events Around the World", "Beginner": "Sample text...", "Intermediate": "Sample text...", "Advanced": "Sample text..."},
-    "Unit 3": {"title": "Unit 3 - Food and Nutrition", "Beginner": "Sample text...", "Intermediate": "Sample text...", "Advanced": "Sample text..."},
-    "Unit 4": {"title": "Unit 4 - My Family Tradition", "Beginner": "Sample text...", "Intermediate": "Sample text...", "Advanced": "Sample text..."},
+    "Unit 2": {
+        "title": "Unit 2 - Fun School Events Around the World",
+        "Beginner": "Today is a special day in New Zealand. It is Cross Country Race Day. All students run in the woods. We run four kilometers. The path has small hills and many trees. It is not easy, but we can do it. Everyone is at the starting line now. We are ready to run. Let's go! In the Philippines, August is special. It is National Language Month. We have many languages in our country. There are over 100 languages! At school, we have fun events. We have speech contests. We read poems. We act in plays. Everything is in our own languages. I am very proud of my language. It is important to keep our languages alive. In the USA, all students learn music at my school. Some students join the orchestra. Some students join the chorus. Others join the music band. Soon we will have a big concert. I will play the violin in the orchestra. My friend Tom will sing in the chorus. Annie will play the guitar in the band. Our parents will come to watch us. I am nervous but very excited. In Korea, we have a digital writing contest today. We use our smartphones to take pictures. We also write stories about our school. Then we post everything on the school website. Today's topic is our school in spring. I will write about the school garden. I will take pictures of beautiful flowers. This contest is really fun. These are special school events from different countries. Each country has unique traditions. School events help us learn and have fun together.",
+        "Intermediate": "Today is Cross Country Race Day in New Zealand. It's a big sport event at our school. We run 4 kilometers in the woods. The course has small hills and lots of trees. It is a hard race, but we can finish it. Now, we're waiting at the starting line! Everyone is excited and ready. Cross country running teaches us perseverance and teamwork. Even though we run individually, we cheer for our classmates. The fresh air and natural scenery make the challenge enjoyable. How many languages do you have in your country? We have over 100 languages in the Philippines. August is National Language Month. There are many events at schools. We have speech contests. We read poems and act in our languages. I'm proud of our languages! Language is an important part of our culture and identity. These events help us appreciate linguistic diversity. Students perform traditional songs and stories in various regional languages. At my school in the USA, every student joins the orchestra, the chorus, or the music band. Soon, we will have a concert in the music hall. I will play the violin in the orchestra. Tom will sing in the chorus, and Annie will play the guitar in the band. My parents are waiting for the concert. I'm nervous but excited! Music education is valued at our school. Regular performances help students develop confidence and artistic skills. We have a digital writing contest today in Korea. We write stories and take pictures with our smartphones. Then, we post our work on the school's online board. The topic is our school campus in the spring. I will write about the school garden and post pictures of the beautiful flowers. It will be fun! Digital literacy is an important skill in modern education. This contest combines creativity with technology.",
+        "Advanced": "Today marks Cross Country Race Day in New Zealand, a significant athletic event at our institution. Participants undertake a challenging four-kilometer course through wooded terrain characterized by undulating hills and dense vegetation. This endurance event, while physically demanding, represents an achievable goal for all students who have trained adequately. At present, competitors are assembled at the starting line, demonstrating a mixture of anticipation and determination. Cross country running cultivates not merely physical stamina but also mental resilience and strategic pacing abilities. The communal aspect of cheering for classmates fosters school spirit and collective achievement despite the individual nature of the competition. The Philippines boasts remarkable linguistic diversity, with over 100 distinct languages spoken throughout the archipelago. August is designated as National Language Month, during which educational institutions organize numerous celebratory events. These include oratorical competitions, poetic recitations, and theatrical performances conducted in various indigenous languages. Such initiatives serve to preserve and promote linguistic heritage in an era of increasing globalization. Students gain appreciation for the rich tapestry of Filipino linguistic and cultural traditions. These educational activities reinforce the importance of multilingualism as both a cultural asset and a cognitive advantage. At my American school, comprehensive music education constitutes a mandatory component of the curriculum. Every student participates in either the orchestra, choral ensemble, or instrumental band. An upcoming concert in the school's auditorium will showcase our collective musical development. I shall perform violin in the orchestra, while my peers Tom and Annie will contribute vocal and guitar performances respectively. Despite pre-performance anxiety, the experience of collaborative musical creation proves immensely rewarding. Music education has been demonstrated to enhance cognitive abilities, emotional intelligence, and collaborative skills. Today's digital writing contest in Korea exemplifies the integration of technology with creative expression in contemporary education. Students compose narratives and capture photographic imagery using smartphones, subsequently publishing their work on the school's digital platform. The designated theme focuses on the school campus during the spring season. I intend to document the botanical beauty of our school garden through both prose and photography. This innovative pedagogical approach develops digital literacy, creative writing skills, and visual composition abilities simultaneously, preparing students for the multimedia communication landscape of the 21st century."
+    },
+    "Unit 3": {
+        "title": "Unit 3 - The Power of Small Acts",
+        "Beginner": "Food is very important for our health. We need to eat different kinds of food every day. A balanced diet includes fruits, vegetables, grains, proteins, and dairy products. For breakfast, many people eat cereal, toast, or eggs. Some people drink orange juice or milk. Breakfast gives us energy to start the day. For lunch, students often eat sandwiches, salads, or rice with vegetables. It is important to eat vegetables because they have many vitamins. Carrots are good for our eyes. Spinach makes us strong. Tomatoes have vitamin C. For dinner, families usually eat together. They might have chicken, fish, or beef with rice or potatoes. Drinking water is very important. We should drink at least eight glasses of water every day. Water helps our body work well. Some foods are not healthy. Candy and soda have too much sugar. Chips have too much salt. We should not eat too much fast food like hamburgers and pizza. These foods can make us sick if we eat them every day. Fruits are nature's candy. Apples, bananas, oranges, and grapes are delicious and healthy. They give us natural sugar and energy. We should eat five servings of fruits and vegetables every day. Protein helps build strong muscles. We can get protein from meat, fish, eggs, beans, and nuts. Calcium makes our bones and teeth strong. Milk, cheese, and yogurt have calcium. Growing children need calcium every day. Eating healthy food helps us grow, learn, and play. When we eat good food, we feel happy and strong. We can think better in school and run faster in sports.",
+        "Intermediate": "Understanding nutrition is essential for maintaining a healthy lifestyle. Nutritionists recommend following the food pyramid or the newer MyPlate guidelines, which emphasize balanced portions of different food groups. A well-rounded diet should consist of whole grains, lean proteins, fruits, vegetables, and low-fat dairy products. Whole grains like brown rice, whole wheat bread, and oatmeal provide fiber and sustained energy throughout the day. Unlike refined grains, they help regulate blood sugar levels and promote digestive health. Proteins are the building blocks of our bodies. They repair tissues and support muscle growth. Good protein sources include chicken, fish, eggs, legumes, tofu, and nuts. Fish, particularly salmon and tuna, contain omega-3 fatty acids that benefit heart and brain health. Fruits and vegetables are rich in vitamins, minerals, and antioxidants. These nutrients strengthen our immune system and protect against diseases. Colorful vegetables like broccoli, bell peppers, and sweet potatoes offer different nutritional benefits. Nutritionists suggest eating a rainbow of colors to ensure varied nutrient intake. Calcium and vitamin D work together to build strong bones. Dairy products, fortified plant-based milk, and leafy greens provide calcium. Sunlight helps our bodies produce vitamin D. However, modern eating habits often include too much processed food, which contains excessive sodium, sugar, and unhealthy fats. These ingredients contribute to obesity, diabetes, and heart disease. Reading nutrition labels helps us make informed choices about what we consume. Portion control is equally important. Even healthy foods can lead to weight gain if consumed in large quantities. Staying hydrated by drinking water instead of sugary beverages supports overall health and helps maintain proper body functions.",
+        "Advanced": "Nutritional science has evolved significantly over the past decades, revealing the complex relationship between diet and overall health. Contemporary research emphasizes not merely the quantity of food consumed but the quality and nutritional density of dietary choices. The concept of functional foods—items that provide health benefits beyond basic nutrition—has gained prominence in nutritional discourse. These include foods rich in probiotics, antioxidants, and phytonutrients that may help prevent chronic diseases. The Mediterranean diet, extensively studied for its health benefits, exemplifies a balanced approach to nutrition. It prioritizes olive oil, fish, whole grains, legumes, and abundant fresh produce while limiting red meat and processed foods. Research indicates this dietary pattern reduces cardiovascular disease risk and promotes longevity. Macronutrient balance—the ratio of carbohydrates, proteins, and fats—remains a subject of ongoing scientific investigation. While traditional guidelines recommended low-fat diets, current evidence suggests that healthy fats from sources like avocados, nuts, and fatty fish play crucial roles in hormone production, nutrient absorption, and cellular function. The glycemic index and glycemic load concepts help individuals understand how different carbohydrates affect blood sugar levels. Complex carbohydrates with low glycemic indices provide sustained energy and better metabolic outcomes compared to simple sugars. Emerging research on the gut microbiome has revolutionized our understanding of nutrition's impact on health. The trillions of bacteria in our digestive system influence not only digestion but also immune function, mental health, and disease susceptibility. Fermented foods and dietary fiber support beneficial gut bacteria. However, nutritional requirements vary based on age, gender, activity level, and individual health conditions. Personalized nutrition, guided by genetic factors and biomarkers, represents the future of dietary recommendations, moving beyond one-size-fits-all guidelines."
+    },
+    "Unit 4": {
+        "title": "Unit 4 - My Family Tradition",
+        "Beginner": "My name is Yubin. My father is from India. My mother is from Korea. They both work with computers. We are a family of three. We have two special family traditions. Every spring, we go to the baseball park. It is the first day of the baseball season. We wear our team's uniform. We cheer loudly for our team. We take pictures at the park gates. I was four years old when we went there for the first time. Now I am older, but we still go every year. It is very exciting! My father's birthday is in the fall. We do special things on his birthday. In the evening, we cook Indian chicken curry together. It is my father's favorite food. We use special curry powder from my grandmother in India. It tastes like real Indian food. We all love eating curry together. It is warm and delicious. After dinner, we play a board game called pachisi. It is a traditional game from India. My father played this game when he was a child. Last year, I lost the game. So I had to wash the dishes. This year, I want to win! I will try my best. Family traditions are very important. They create happy memories. I love our family traditions. I want to keep them for a long time. When I grow up and have my own family, I will teach these traditions to my children. Traditions connect us to our family history and culture.",
+        "Intermediate": "My name is Yubin. My father and mother are computer engineers. My mother fell in love with him when she worked in India. Yes, my father is Indian. We're a family of three. We have two family traditions. Every spring, we visit the city's baseball park on the KBO's opening day. It's an exciting day. We wear our team's uniform and cheer for them loudly. We like to take pictures at the gates. When we visited the park for the first time, I was four years old. This tradition has continued for many years now. The excitement of opening day never gets old. Watching baseball together brings our family closer. We share the joy of victories and the disappointment of defeats. My father's birthday is in the fall. We do special things on his birthday. In the evening, we cook Indian chicken curry together. It's his favorite dish. We get special curry powder from my grandmother in India. It has the real taste of India. We all love a warm and tasty bowl of curry. Cooking together is a bonding experience. We talk, laugh, and share stories while preparing the meal. After dinner, we play pachisi. It's a traditional board game in India. My father played it when he was young. Last year, I lost the game and did the dishes. I really want to win this year! The game teaches us about strategy and patience. It also connects us to my father's childhood memories in India. Family traditions create wonderful memories. I love my family traditions and hope to keep them for a long time. These rituals give us a sense of identity and belonging. They remind us of our multicultural heritage and the love that binds us together.",
+        "Advanced": "My name is Yubin. Both my parents are computer engineers who met professionally. My mother developed romantic feelings for my father during her employment tenure in India. Indeed, my father is of Indian descent, making our household a cross-cultural family unit of three members. We maintain two distinctive family traditions that reflect our bicultural heritage. Annually during spring, we attend the city's baseball stadium on the Korean Baseball Organization's opening day. This occasion represents a significant family ritual. We don matching team uniforms and enthusiastically support our chosen team with vocal encouragement. We habitually capture photographic memories at the stadium entrance gates. I was merely four years of age during our inaugural visit, and this tradition has persisted consistently ever since. The ceremonial aspect of opening day attendance transcends mere sports spectatorship; it represents a familial bonding experience and a celebration of Korean cultural participation. My father's birthday occurs during the autumn season. We observe specific commemorative practices on this occasion. During the evening hours, we collaboratively prepare Indian chicken curry, his preferred culinary dish. We utilize specialized curry powder procured from my paternal grandmother in India, ensuring authentic flavor profiles characteristic of genuine Indian cuisine. The communal preparation and consumption of this meal constitutes both a gastronomic experience and a cultural ritual connecting us to my father's heritage. Following the meal, we engage in pachisi, a traditional Indian board game with historical significance. My father participated in this game during his childhood in India. During last year's competition, my defeat resulted in dish-washing responsibilities. This year, I am determined to achieve victory through improved strategic gameplay. The game serves multiple functions: entertainment, strategic thinking development, and cultural transmission. Family traditions function as crucial mechanisms for creating enduring memories and establishing familial identity. I deeply value our family traditions and aspire to perpetuate them indefinitely. These practices represent more than mere routines; they embody our multicultural identity, preserve intergenerational connections, and reinforce the affective bonds that constitute our family unit. Such traditions provide continuity, meaning, and a sense of belonging in an increasingly globalized world."
+    },
     "Unit 5": {"title": "Unit 5 - Sports and Physical Activity", "Beginner": "Sample text...", "Intermediate": "Sample text...", "Advanced": "Sample text..."},
     "Unit 6": {"title": "Unit 6 - Hobbies and Leisure Activities", "Beginner": "Sample text...", "Intermediate": "Sample text...", "Advanced": "Sample text..."},
     "Unit 7": {"title": "Unit 7 - Travel and Exploring the World", "Beginner": "Sample text...", "Intermediate": "Sample text...", "Advanced": "Sample text..."},
@@ -234,24 +307,24 @@ def generate_quiz_questions(unit):
     """해당 Unit의 간단한 퀴즈 문제 생성"""
     quiz_templates = {
         "Unit 1": [
-            {"question": "What is Harin's hobby?", "options": ["Running", "Swimming", "Dancing"], "answer": 0},
-            {"question": "What does Mike do on social media?", "options": ["Posts food pictures", "Posts outfit pictures", "Posts travel photos"], "answer": 1},
-            {"question": "What does Elena love?", "options": ["Cooking", "Donuts", "Shopping"], "answer": 1}
+            {"question": "What is Harin's main hobby?", "options": ["Swimming", "Running", "Dancing"], "answer": 1},
+            {"question": "What does Mike share on social media?", "options": ["Food pictures", "Fashion outfit pictures", "Travel photos"], "answer": 1},
+            {"question": "What does Elena love to visit?", "options": ["Restaurants", "Donut shops", "Bookstores"], "answer": 1}
         ],
         "Unit 2": [
-            {"question": "Where is Cross Country Race Day held?", "options": ["Philippines", "New Zealand", "USA"], "answer": 1},
-            {"question": "How many languages are there in the Philippines?", "options": ["50", "100", "150"], "answer": 1},
-            {"question": "What musical instrument does the student play?", "options": ["Guitar", "Piano", "Violin"], "answer": 2}
+            {"question": "Which country celebrates Cross Country Race Day?", "options": ["USA", "New Zealand", "Philippines"], "answer": 1},
+            {"question": "How many languages are spoken in the Philippines?", "options": ["Over 50", "Over 100", "Over 150"], "answer": 1},
+            {"question": "What instrument does the narrator play?", "options": ["Piano", "Guitar", "Violin"], "answer": 2}
         ],
         "Unit 3": [
-            {"question": "What is important for our health?", "options": ["Candy", "Food", "Soda"], "answer": 1},
-            {"question": "How much water should we drink daily?", "options": ["4 glasses", "8 glasses", "12 glasses"], "answer": 1},
-            {"question": "What makes our bones strong?", "options": ["Sugar", "Calcium", "Salt"], "answer": 1}
+            {"question": "What is essential for a healthy lifestyle?", "options": ["Sweets", "Balanced nutrition", "Fast food"], "answer": 1},
+            {"question": "How many glasses of water should we drink daily?", "options": ["4 glasses", "8 glasses", "12 glasses"], "answer": 1},
+            {"question": "Which nutrient is important for strong bones?", "options": ["Iron", "Calcium", "Sodium"], "answer": 1}
         ],
         "Unit 4": [
-            {"question": "What is Yubin's father's origin?", "options": ["Korea", "India", "Japan"], "answer": 1},
-            {"question": "When do they visit the baseball park?", "options": ["Winter", "Spring", "Summer"], "answer": 1},
-            {"question": "What game do they play after dinner?", "options": ["Chess", "Pachisi", "Go"], "answer": 1}
+            {"question": "Where is Yubin's father originally from?", "options": ["Korea", "India", "USA"], "answer": 1},
+            {"question": "When do they visit the baseball park?", "options": ["Fall", "Spring", "Summer"], "answer": 1},
+            {"question": "What traditional game do they play?", "options": ["Chess", "Pachisi", "Go"], "answer": 1}
         ]
     }
     return quiz_templates.get(unit, quiz_templates["Unit 1"])
@@ -264,36 +337,127 @@ def generate_quiz_questions(unit):
 def show_teacher_dashboard():
     """교사 대시보드"""
     st.header("👨‍🏫 교사 대시보드")
-    
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        st.subheader("📚 새 과제 생성")
-        
-        unit = st.selectbox("Unit 선택", ["Unit 1", "Unit 2", "Unit 3", "Unit 4"])
-        difficulty = st.radio("난이도 선택", ["상", "중", "하"])
-        
-        if st.button("🚀 과제 생성 및 배포", use_container_width=True):
-            # 접속 코드 생성
+
+    tab1, tab2, tab3 = st.tabs(["📚 과제 배포", "📈 결과 대시보드", "🗂 제공 텍스트 보기"])
+
+    # ------------------------------------------------------------
+    # Tab 1: 과제 배포 (미리보기/편집 + 퀴즈 확인)
+    # ------------------------------------------------------------
+    with tab1:
+        st.subheader("📚 새 과제 생성 및 미리보기")
+
+        unit = st.selectbox("Unit 선택", ["Unit 1", "Unit 2", "Unit 3", "Unit 4"], key="publish_unit")
+        difficulty = st.radio("난이도 선택", ["상", "중", "하"], horizontal=True, key="publish_difficulty")
+
+        difficulty_map = {"상": "Advanced", "중": "Intermediate", "하": "Beginner"}
+        text_key = difficulty_map[difficulty]
+        base_text = YBM_TEXTBOOK.get(unit, {}).get(text_key, "Sample text")
+
+        # 미리보기(편집 가능): 난이도/유닛에 따라 키를 달리하여 캐시 문제 방지
+        edited_text = st.text_area(
+            "지문 미리보기 (편집 가능)",
+            value=base_text,
+            height=220,
+            key=f"preview_text_{unit}_{text_key}"
+        )
+
+        st.divider()
+        st.subheader("❓ 자동 생성 퀴즈 미리보기")
+        quiz_preview = generate_quiz_questions(unit)
+
+        # MCQ 스타일로 보기 구성
+        for idx, q in enumerate(quiz_preview):
+            st.markdown(f"**{idx+1}. {q['question']}**")
+            opts = q.get("options", [])
+            correct_idx = q.get("answer", 0)
+            for i, opt in enumerate(opts):
+                marker = "①" if i == 0 else "②" if i == 1 else "③" if i == 2 else "④"
+                label = f"{marker} {opt}"
+                if i == correct_idx:
+                    st.write(f"- {label} (정답)")
+                else:
+                    st.write(f"- {label}")
+            st.write("—")
+
+        # 디버그 정보
+        with st.expander("🔍 디버그 정보"):
+            st.write({
+                "selected_unit": unit,
+                "selected_difficulty": difficulty,
+                "text_key": text_key,
+                "available_keys": list(YBM_TEXTBOOK.get(unit, {}).keys()),
+                "text_length": len(base_text),
+                "text_preview": base_text[:120]
+            })
+
+        if st.button("🚀 과제 생성 및 배포", use_container_width=True, key="publish_create"):
             access_code = generate_access_code()
-            
-            # 퀴즈 데이터 생성
-            quiz_data = generate_quiz_questions(unit)
-            
-            # 텍스트 가져오기
-            difficulty_map = {"상": "Advanced", "중": "Intermediate", "하": "Beginner"}
-            text = YBM_TEXTBOOK.get(unit, {}).get(difficulty_map[difficulty], "Sample text")
-            
-            # Firestore에 저장
+            quiz_data = quiz_preview
+            text = edited_text or base_text
+
             if save_assignment_to_firebase(access_code, unit, difficulty, quiz_data, text):
-                st.success(f"✅ 과제가 생성되었습니다!")
+                st.success("✅ 과제가 생성되었습니다!")
                 st.info(f"**학생 접속 코드: {access_code}**")
             else:
                 st.error("과제 생성 실패")
-    
-    with col2:
-        st.subheader("📊 배포된 과제")
-        st.write("*배포된 과제 목록은 여기에 표시됩니다.*")
+
+    # ------------------------------------------------------------
+    # Tab 2: 결과 대시보드 (Firestore에서 과제 조회)
+    # ------------------------------------------------------------
+    with tab2:
+        st.subheader("📈 결과 대시보드")
+        st.caption("배포된 과제와 학생 결과를 확인하세요")
+
+        # Firestore에서 과제 목록 가져오기 (가능한 경우)
+        assignments = []
+        try:
+            from firebase_admin import firestore  # type: ignore
+            db = firestore.client()  # 이미 초기화된 경우 정상 동작
+            docs = db.collection("readfit_assignments").order_by("created_at", direction=firestore.Query.DESCENDING).limit(20).stream()
+            for d in docs:
+                data = d.to_dict()
+                data["id"] = d.id
+                assignments.append(data)
+        except Exception:
+            st.warning("Firestore 조회가 비활성화되어 있습니다. 배포 후 확인하세요.")
+
+        if assignments:
+            for a in assignments:
+                with st.container(border=True):
+                    col1, col2 = st.columns([3, 2])
+                    with col1:
+                        st.markdown(f"**접속 코드:** {a.get('access_code', '-')}")
+                        st.markdown(f"- Unit: {a.get('unit', '-')}")
+                        st.markdown(f"- 난이도: {a.get('difficulty', '-')}")
+                        st.markdown(f"- 생성 시각: {a.get('created_at', '-')}")
+                    with col2:
+                        st.markdown("**퀴즈 문항 수:** " + str(len(a.get('quiz', []))))
+                        # 학생 결과가 저장되는 필드를 가정하여 표시 (없으면 생략)
+                        results = a.get('results')
+                        if results:
+                            avg = int(sum(r.get('total_score', 0) for r in results) / max(len(results), 1))
+                            st.markdown(f"**평균 점수:** {avg}")
+                            st.markdown(f"**제출 수:** {len(results)}")
+                        else:
+                            st.markdown("제출된 결과 없음")
+        else:
+            st.info("아직 표시할 과제가 없습니다.")
+
+    # ------------------------------------------------------------
+    # Tab 3: 제공 텍스트 보기 (Intermediate - 제공본 확인)
+    # ------------------------------------------------------------
+    with tab3:
+        st.subheader("🗂 제공된 Unit 텍스트 (중급)")
+        st.caption("Units 1–4의 제공된 중급 텍스트를 확인하세요")
+
+        for u in ["Unit 1", "Unit 2", "Unit 3", "Unit 4"]:
+            text_mid = YBM_TEXTBOOK.get(u, {}).get("Intermediate")
+            title = YBM_TEXTBOOK.get(u, {}).get("title", u)
+            with st.expander(f"{title} — {u}"):
+                if text_mid:
+                    st.write(text_mid)
+                else:
+                    st.write("중급 텍스트가 없습니다.")
 
 
 # ============================================================================
@@ -414,14 +578,20 @@ def show_step3_image_detective(assignment):
         random.shuffle(options)
         st.session_state.detective_options = options
         
-        # DALL-E 이미지 생성
+        # 이미지 생성 (안정적인 URL)
         with st.spinner("🤖 AI가 그림을 그리고 있어요..."):
             image_url = generate_image_with_dalle(selected_word)
             st.session_state.detective_image = image_url
     
-    # 이미지 표시
+    # 이미지 표시 (바이트 또는 URL 모두 지원)
     if st.session_state.detective_image:
-        st.image(st.session_state.detective_image, caption="이 그림이 무엇일까요?", use_container_width=True)
+        try:
+            st.image(st.session_state.detective_image, caption="이 그림이 무엇일까요?", use_container_width=True)
+        except Exception as e:
+            st.warning(f"⚠️ 이미지를 로드할 수 없습니다. ({str(e)})")
+            st.info(f"단어: {st.session_state.detective_word}")
+    else:
+        st.warning("⚠️ 이미지를 준비하지 못했습니다.")
     
     st.write("**아래 버튼 중 정답을 선택하세요:**")
     
