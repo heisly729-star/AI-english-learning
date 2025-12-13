@@ -9,7 +9,6 @@ import string
 import base64
 from datetime import datetime
 from openai import OpenAI
-import google.generativeai as genai
 
 
 # ==========================================================================
@@ -958,65 +957,65 @@ def show_step4_report(quiz_score, activity_score, selected_mission_title):
     st.header("Step 4️⃣ 최종 리포트")
     
     # Firestore에 결과 저장
-    if "db" in st.session_state and st.session_state.db is not None:
-        try:
-            # mission_id 결정
-            if selected_mission_title == "🎨 이미지 탐정":
-                mission_id = "image_detective"
-            elif selected_mission_title == "🕵️ 미스터리 스무고개":
-                mission_id = "mystery_20_questions"
-            elif selected_mission_title == "✍️ 베스트셀러 작가":
-                mission_id = "writer"
-            else:
-                mission_id = "unknown"
-            
-            # 기본 데이터
-            submission_data = {
-                "student_name": st.session_state.get("student_name", "Anonymous"),
-                "access_code": st.session_state.get("access_code", "N/A"),
-                "timestamp": datetime.now(),
-                "quiz_score": quiz_score,
-                "activity_score": activity_score,
-                "total_score": int((quiz_score * 0.4 + activity_score * 0.6)),
-                "mission_id": mission_id,
-                "quiz_correct": st.session_state.get("quiz_correct", 0),
-                "quiz_total": st.session_state.get("quiz_total", 0),
-            }
-            
-            # mission_details: 미션 타입별 상세 정보
-            mission_details = {}
-            
-            if mission_id == "image_detective":
-                mission_details = {
-                    "result_type": st.session_state.get("detective_answer_type", "unknown"),
-                    "target_word": st.session_state.get("detective_target", ""),
-                    "student_answer": st.session_state.get("detective_answer", ""),
-                }
-            
-            elif mission_id == "mystery_20_questions":
-                mission_details = {
-                    "hints_used": st.session_state.get("mystery_hint_level", 0),
-                    "target_word": st.session_state.get("mystery_target_word", ""),
-                    "student_answer": st.session_state.get("activity_answer", ""),
-                }
-            
-            elif mission_id == "writer":
-                mission_details = {
-                    "student_text": st.session_state.get("activity_answer", ""),
-                    "ai_feedback": st.session_state.get("writer_feedback", ""),
-                    "keywords_used": st.session_state.get("writer_keywords", []),
-                }
-            
-            submission_data["mission_details"] = mission_details
-            
-            # Firestore 저장
-            db = st.session_state.db
-            db.collection("readfit_submissions").add(submission_data)
-            
-            st.toast("✅ 선생님께 결과가 전송되었습니다!")
+    try:
+        db = get_firestore_client()
         
-        except Exception as e:
-            st.warning(f"⚠️ 결과 저장 중 오류 발생: {str(e)}")
+        # mission_id 결정
+        if selected_mission_title == "🎨 이미지 탐정":
+            mission_id = "image_detective"
+        elif selected_mission_title == "🕵️ 미스터리 스무고개":
+            mission_id = "mystery_20_questions"
+        elif selected_mission_title == "✍️ 베스트셀러 작가":
+            mission_id = "writer"
+        else:
+            mission_id = "unknown"
+        
+        # 기본 데이터
+        submission_data = {
+            "student_name": st.session_state.get("student_name") or st.session_state.get("user_name", "Anonymous"),
+            "access_code": st.session_state.get("current_access_code", "N/A"),
+            "timestamp": datetime.now(),
+            "quiz_score": quiz_score,
+            "activity_score": activity_score,
+            "total_score": int((quiz_score * 0.4 + activity_score * 0.6)),
+            "mission_id": mission_id,
+            "quiz_correct": st.session_state.get("quiz_correct", 0),
+            "quiz_total": st.session_state.get("quiz_total", 0),
+        }
+        
+        # mission_details: 미션 타입별 상세 정보
+        mission_details = {}
+        
+        if mission_id == "image_detective":
+            mission_details = {
+                "result_type": st.session_state.get("detective_answer_type", "unknown"),
+                "target_word": st.session_state.get("detective_target", ""),
+                "student_answer": st.session_state.get("detective_answer", ""),
+            }
+        
+        elif mission_id == "mystery_20_questions":
+            mission_details = {
+                "hints_used": st.session_state.get("mystery_hint_level", 0),
+                "target_word": st.session_state.get("mystery_target_word", ""),
+                "student_answer": st.session_state.get("activity_answer", ""),
+            }
+        
+        elif mission_id == "writer":
+            mission_details = {
+                "student_text": st.session_state.get("activity_answer", ""),
+                "ai_feedback": st.session_state.get("writer_feedback", ""),
+                "keywords_used": st.session_state.get("writer_keywords", []),
+            }
+        
+        submission_data["mission_details"] = mission_details
+        
+        # Firestore 저장
+        db.collection("readfit_submissions").add(submission_data)
+        
+        st.toast("✅ 선생님께 결과가 전송되었습니다!")
+    
+    except Exception as e:
+        st.warning(f"⚠️ 결과 저장 중 오류: {str(e)}")
     
     total_score = int((quiz_score * 0.4 + activity_score * 0.6))
     
@@ -1191,12 +1190,8 @@ def show_teacher_results():
         return
     
     # Firestore에서 데이터 조회
-    if "db" not in st.session_state or st.session_state.db is None:
-        st.error("⚠️ Firebase 연결이 실패했습니다.")
-        return
-    
     try:
-        db = st.session_state.db
+        db = get_firestore_client()
         query = db.collection("readfit_submissions").where("access_code", "==", access_code)
         docs = list(query.stream())
         
@@ -1315,109 +1310,118 @@ def show_teacher_dashboard():
         st.write("**역할**: 교사")
         st.divider()
         
+        menu_choice = st.radio("메뉴", ["과제 생성", "결과 보기"], key="teacher_menu")
+        
+        st.divider()
+        
         if st.button("로그아웃", use_container_width=True):
             logout()
     
-    st.subheader("📚 ReadFit - 과제 생성")
-    
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        selected_unit = st.selectbox(
-            "📖 단원 선택",
-            ["Unit 1", "Unit 2", "Unit 3", "Unit 4"],
-            key="teacher_unit_select"
-        )
-    
-    with col2:
-        difficulty = st.selectbox(
-            "📊 난이도 선택",
-            ["Beginner (초급)", "Intermediate (중급)", "Advanced (고급)"],
-            key="teacher_difficulty_select"
-        )
-    
-    st.divider()
-    
-    # 선택된 지문과 퀴즈 미리보기
-    unit_data = YBM_TEXTBOOK[selected_unit]
-    unit_title = unit_data["title"]
-    difficulty_key = difficulty.split()[0]
-    text_content = unit_data[difficulty_key]
-    
-    st.subheader(f"🎯 {unit_title} ({difficulty})")
-    
-    # 디버그 정보
-    with st.expander("🔍 디버그 정보", expanded=True):
-        st.write(f"**선택된 단원**: `{selected_unit}`")
-        st.write(f"**선택된 난이도**: `{difficulty}`")
-        st.write(f"**추출된 난이도 키**: `{difficulty_key}`")
-        st.write(f"**사용 가능한 난이도 키들**: `{list(unit_data.keys())}`")
-        st.write(f"**지문 길이**: {len(text_content)} 글자")
-        st.write(f"**지문 시작 100자**: {text_content[:100]}...")
-    
-    # 지문 미리보기 및 수정
-    st.markdown("### 📖 지문 내용")
-    st.caption("💡 지문 내용을 직접 수정할 수 있습니다.")
-    edited_text = st.text_area(
-        "학생들에게 제공될 지문",
-        value=text_content,
-        height=200,
-        key=f"preview_text_{difficulty_key}"
-    )
-    # 수정된 지문 사용
-    text_content = edited_text
-    
-    st.divider()
-    
-    # 퀴즈 미리보기
-    st.markdown("### ❓ 자동 생성 퀴즈 (미리보기)")
-    quiz_questions = generate_simple_quiz(text_content, unit_title, difficulty)
-    
-    st.markdown("---")
-    for idx, q in enumerate(quiz_questions):
-        st.markdown(f"**{idx+1}.** {q['question']}")
-        st.write("")
-        for opt_idx, option in enumerate(q['options']):
-            marker = "①" if opt_idx == 0 else "②" if opt_idx == 1 else "③"
-            if opt_idx == q['answer']:
-                st.markdown(f"{marker} {option} &nbsp;&nbsp; ✅ **(정답)**")
-            else:
-                st.write(f"{marker} {option}")
-        st.write("")
-        if idx < len(quiz_questions) - 1:
-            st.markdown("---")
-    
-    st.divider()
-    
-    # 과제 생성 버튼
-    st.markdown("### 🚀 과제 배포")
-    st.caption("위의 지문과 퀴즈를 확인하셨다면 아래 버튼을 눌러 과제를 생성하세요.")
-    
-    if st.button("✅ 과제 생성 및 배포", use_container_width=True, type="primary", key="create_assignment_btn"):
-        access_code = generate_access_code()
+    # 메뉴 선택에 따른 화면 표시
+    if menu_choice == "과제 생성":
+        st.subheader("📚 ReadFit - 과제 생성")
         
-        try:
-            db = get_firestore_client()
-            assignment_data = {
-                "unit": selected_unit,
-                "difficulty": difficulty,
-                "access_code": access_code,
-                "text": text_content,
-                "quiz": quiz_questions,
-                "teacher_name": st.session_state.user_name,
-                "created_at": datetime.now()
-            }
-            db.collection("readfit_assignments").document(access_code).set(assignment_data)
-            
-            st.success(f"✅ 과제가 생성되었습니다!\n\n**학생 접근 코드: `{access_code}`**")
-            st.info(
-                f"📚 **단원**: {unit_title}\n"
-                f"📊 **난이도**: {difficulty}\n"
-                f"❓ **문제 수**: 3개 (객관식)"
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            selected_unit = st.selectbox(
+                "📖 단원 선택",
+                ["Unit 1", "Unit 2", "Unit 3", "Unit 4"],
+                key="teacher_unit_select"
             )
-            st.balloons()
-        except Exception as e:
-            st.error(f"과제 생성 실패: {str(e)}")
+        
+        with col2:
+            difficulty = st.selectbox(
+                "📊 난이도 선택",
+                ["Beginner (초급)", "Intermediate (중급)", "Advanced (고급)"],
+                key="teacher_difficulty_select"
+            )
+        
+        st.divider()
+        
+        # 선택된 지문과 퀴즈 미리보기
+        unit_data = YBM_TEXTBOOK[selected_unit]
+        unit_title = unit_data["title"]
+        difficulty_key = difficulty.split()[0]
+        text_content = unit_data[difficulty_key]
+        
+        st.subheader(f"🎯 {unit_title} ({difficulty})")
+        
+        # 디버그 정보
+        with st.expander("🔍 디버그 정보", expanded=True):
+            st.write(f"**선택된 단원**: `{selected_unit}`")
+            st.write(f"**선택된 난이도**: `{difficulty}`")
+            st.write(f"**추출된 난이도 키**: `{difficulty_key}`")
+            st.write(f"**사용 가능한 난이도 키들**: `{list(unit_data.keys())}`")
+            st.write(f"**지문 길이**: {len(text_content)} 글자")
+            st.write(f"**지문 시작 100자**: {text_content[:100]}...")
+        
+        # 지문 미리보기 및 수정
+        st.markdown("### 📖 지문 내용")
+        st.caption("💡 지문 내용을 직접 수정할 수 있습니다.")
+        edited_text = st.text_area(
+            "학생들에게 제공될 지문",
+            value=text_content,
+            height=200,
+            key=f"preview_text_{difficulty_key}"
+        )
+        # 수정된 지문 사용
+        text_content = edited_text
+        
+        st.divider()
+        
+        # 퀴즈 미리보기
+        st.markdown("### ❓ 자동 생성 퀴즈 (미리보기)")
+        quiz_questions = generate_simple_quiz(text_content, unit_title, difficulty)
+        
+        st.markdown("---")
+        for idx, q in enumerate(quiz_questions):
+            st.markdown(f"**{idx+1}.** {q['question']}")
+            st.write("")
+            for opt_idx, option in enumerate(q['options']):
+                marker = "①" if opt_idx == 0 else "②" if opt_idx == 1 else "③"
+                if opt_idx == q['answer']:
+                    st.markdown(f"{marker} {option} &nbsp;&nbsp; ✅ **(정답)**")
+                else:
+                    st.write(f"{marker} {option}")
+            st.write("")
+            if idx < len(quiz_questions) - 1:
+                st.markdown("---")
+        
+        st.divider()
+        
+        # 과제 생성 버튼
+        st.markdown("### 🚀 과제 배포")
+        st.caption("위의 지문과 퀴즈를 확인하셨다면 아래 버튼을 눌러 과제를 생성하세요.")
+        
+        if st.button("✅ 과제 생성 및 배포", use_container_width=True, type="primary", key="create_assignment_btn"):
+            access_code = generate_access_code()
+            
+            try:
+                db = get_firestore_client()
+                assignment_data = {
+                    "unit": selected_unit,
+                    "difficulty": difficulty,
+                    "access_code": access_code,
+                    "text": text_content,
+                    "quiz": quiz_questions,
+                    "teacher_name": st.session_state.user_name,
+                    "created_at": datetime.now()
+                }
+                db.collection("readfit_assignments").document(access_code).set(assignment_data)
+                
+                st.success(f"✅ 과제가 생성되었습니다!\n\n**학생 접근 코드: `{access_code}`**")
+                st.info(
+                    f"📚 **단원**: {unit_title}\n"
+                    f"📊 **난이도**: {difficulty}\n"
+                    f"❓ **문제 수**: 3개 (객관식)"
+                )
+                st.balloons()
+            except Exception as e:
+                st.error(f"과제 생성 실패: {str(e)}")
+    
+    elif menu_choice == "결과 보기":
+        show_teacher_results()
 
 
 # ============================================================================
