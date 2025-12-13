@@ -8,8 +8,8 @@ import random
 import string
 import base64
 from datetime import datetime
-import google.generativeai as genai
 from openai import OpenAI
+import google.generativeai as genai
 
 
 # ==========================================================================
@@ -957,6 +957,67 @@ def show_step4_report(quiz_score, activity_score, selected_mission_title):
     """Step 4: 최종 리포트"""
     st.header("Step 4️⃣ 최종 리포트")
     
+    # Firestore에 결과 저장
+    if "db" in st.session_state and st.session_state.db is not None:
+        try:
+            # mission_id 결정
+            if selected_mission_title == "🎨 이미지 탐정":
+                mission_id = "image_detective"
+            elif selected_mission_title == "🕵️ 미스터리 스무고개":
+                mission_id = "mystery_20_questions"
+            elif selected_mission_title == "✍️ 베스트셀러 작가":
+                mission_id = "writer"
+            else:
+                mission_id = "unknown"
+            
+            # 기본 데이터
+            submission_data = {
+                "student_name": st.session_state.get("student_name", "Anonymous"),
+                "access_code": st.session_state.get("access_code", "N/A"),
+                "timestamp": datetime.now(),
+                "quiz_score": quiz_score,
+                "activity_score": activity_score,
+                "total_score": int((quiz_score * 0.4 + activity_score * 0.6)),
+                "mission_id": mission_id,
+                "quiz_correct": st.session_state.get("quiz_correct", 0),
+                "quiz_total": st.session_state.get("quiz_total", 0),
+            }
+            
+            # mission_details: 미션 타입별 상세 정보
+            mission_details = {}
+            
+            if mission_id == "image_detective":
+                mission_details = {
+                    "result_type": st.session_state.get("detective_answer_type", "unknown"),
+                    "target_word": st.session_state.get("detective_target", ""),
+                    "student_answer": st.session_state.get("detective_answer", ""),
+                }
+            
+            elif mission_id == "mystery_20_questions":
+                mission_details = {
+                    "hints_used": st.session_state.get("mystery_hint_level", 0),
+                    "target_word": st.session_state.get("mystery_target_word", ""),
+                    "student_answer": st.session_state.get("activity_answer", ""),
+                }
+            
+            elif mission_id == "writer":
+                mission_details = {
+                    "student_text": st.session_state.get("activity_answer", ""),
+                    "ai_feedback": st.session_state.get("writer_feedback", ""),
+                    "keywords_used": st.session_state.get("writer_keywords", []),
+                }
+            
+            submission_data["mission_details"] = mission_details
+            
+            # Firestore 저장
+            db = st.session_state.db
+            db.collection("readfit_submissions").add(submission_data)
+            
+            st.toast("✅ 선생님께 결과가 전송되었습니다!")
+        
+        except Exception as e:
+            st.warning(f"⚠️ 결과 저장 중 오류 발생: {str(e)}")
+    
     total_score = int((quiz_score * 0.4 + activity_score * 0.6))
     
     col1, col2, col3 = st.columns(3)
@@ -969,6 +1030,8 @@ def show_step4_report(quiz_score, activity_score, selected_mission_title):
     
     with col3:
         st.metric("⭐ 최종 점수", f"{total_score}점")
+    
+    st.balloons()
     
     st.divider()
     
