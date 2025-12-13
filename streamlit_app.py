@@ -1172,6 +1172,135 @@ def show_login_page():
 
 
 # ============================================================================
+# 6. TEACHER RESULTS
+# ============================================================================
+
+def show_teacher_results():
+    """교사 대시보드 - 과제 결과 조회"""
+    st.header("📊 과제 결과 조회")
+    
+    # 과제 코드 입력
+    access_code = st.text_input(
+        "과제 코드 입력",
+        placeholder="학생들에게 배포한 과제 코드를 입력하세요",
+        key="teacher_code_input"
+    )
+    
+    if not access_code:
+        st.info("📌 과제 코드를 입력하면 학생들의 제출 결과를 조회할 수 있습니다.")
+        return
+    
+    # Firestore에서 데이터 조회
+    if "db" not in st.session_state or st.session_state.db is None:
+        st.error("⚠️ Firebase 연결이 실패했습니다.")
+        return
+    
+    try:
+        db = st.session_state.db
+        query = db.collection("readfit_submissions").where("access_code", "==", access_code)
+        docs = list(query.stream())
+        
+        if not docs:
+            st.warning("제출된 과제가 없습니다.")
+            return
+        
+        # 데이터 정리
+        submissions = []
+        for doc in docs:
+            data = doc.to_dict()
+            submissions.append({
+                "doc_id": doc.id,
+                "data": data
+            })
+        
+        # Summary 데이터프레임 생성
+        import pandas as pd
+        summary_data = []
+        for sub in submissions:
+            data = sub["data"]
+            mission_name_map = {
+                "image_detective": "🎨 이미지 탐정",
+                "mystery_20_questions": "🕵️ 스무고개",
+                "writer": "✍️ 작가"
+            }
+            mission_name = mission_name_map.get(data.get("mission_id", "unknown"), data.get("mission_id", "알 수 없음"))
+            
+            summary_data.append({
+                "학생명": data.get("student_name", "이름 없음"),
+                "활동": mission_name,
+                "퀴즈 점수": f"{data.get('quiz_score', 0)}점",
+                "활동 점수": f"{data.get('activity_score', 0)}점",
+                "최종 점수": f"{data.get('total_score', 0)}점",
+                "제출 시간": data.get("timestamp", "알 수 없음")
+            })
+        
+        # 데이터프레임 표시
+        st.subheader(f"📋 제출 현황 ({len(submissions)}명)")
+        df = pd.DataFrame(summary_data)
+        st.dataframe(df, use_container_width=True)
+        
+        st.divider()
+        
+        # 개별 상세 정보
+        st.subheader("📝 개별 결과 상세")
+        
+        for idx, sub in enumerate(submissions):
+            data = sub["data"]
+            student_name = data.get("student_name", "이름 없음")
+            mission_id = data.get("mission_id", "unknown")
+            mission_details = data.get("mission_details", {})
+            
+            with st.expander(f"👤 {student_name} - {data.get('total_score', 0)}점", expanded=False):
+                col1, col2 = st.columns(2)
+                
+                with col1:
+                    st.metric("퀴즈 점수", f"{data.get('quiz_score', 0)}점")
+                with col2:
+                    st.metric("활동 점수", f"{data.get('activity_score', 0)}점")
+                
+                st.divider()
+                
+                # 미션별 상세 정보
+                if mission_id == "writer":
+                    st.subheader("✍️ 작품")
+                    student_text = mission_details.get("student_text", "텍스트 없음")
+                    st.text_area(
+                        "학생 작품:",
+                        value=student_text,
+                        height=200,
+                        disabled=True,
+                        key=f"writer_text_{idx}"
+                    )
+                    
+                    st.subheader("🤖 AI 피드백")
+                    ai_feedback = mission_details.get("ai_feedback", "피드백 없음")
+                    st.markdown(ai_feedback)
+                    
+                elif mission_id == "mystery_20_questions":
+                    st.subheader("🕵️ 스무고개 결과")
+                    st.write(f"**목표 단어:** {mission_details.get('target_word', 'N/A')}")
+                    st.write(f"**학생 답:** {mission_details.get('student_answer', 'N/A')}")
+                    st.write(f"**사용한 힌트:** {mission_details.get('hints_used', 0)}개")
+                    
+                elif mission_id == "image_detective":
+                    st.subheader("🎨 이미지 탐정 결과")
+                    result_type = mission_details.get("result_type", "unknown")
+                    result_type_map = {
+                        "correct": "✅ 정답",
+                        "semantic": "🔍 의미적 오답",
+                        "spelling": "📝 철자적 오답",
+                        "random": "🤔 무관한 오답"
+                    }
+                    
+                    st.write(f"**목표 단어:** {mission_details.get('target_word', 'N/A')}")
+                    st.write(f"**학생 답:** {mission_details.get('student_answer', 'N/A')}")
+                    st.write(f"**답변 유형:** {result_type_map.get(result_type, result_type)}")
+    
+    except Exception as e:
+        st.error(f"⚠️ 데이터 조회 중 오류 발생: {str(e)}")
+
+
+# ============================================================================
 # 6. TEACHER DASHBOARD
 # ============================================================================
 
