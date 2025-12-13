@@ -7,6 +7,7 @@ import streamlit as st
 import random
 import string
 import base64
+import os
 from datetime import datetime
 from openai import OpenAI
 
@@ -14,6 +15,108 @@ from openai import OpenAI
 # ==========================================================================
 # UTILITY FUNCTIONS
 # ==========================================================================
+
+@st.cache_resource(show_spinner=False)
+def get_openai_client():
+    """Create a cached OpenAI client using secrets or env."""
+    api_key = st.secrets.get("OPENAI_API_KEY") or os.getenv("OPENAI_API_KEY")
+    return OpenAI(api_key=api_key) if api_key else None
+
+
+def generate_report_insights_with_openai(submission_data, mission_details):
+    """Generate coaching-style Korean report insights as JSON via OpenAI Responses API."""
+    client = get_openai_client()
+    if not client:
+        return None
+
+    json_schema = {
+        "name": "report_insights",
+        "schema": {
+            "type": "object",
+            "properties": {
+                "strengths": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "minItems": 2,
+                    "maxItems": 4
+                },
+                "weaknesses": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "minItems": 1,
+                    "maxItems": 3
+                },
+                "next_steps": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "minItems": 2,
+                    "maxItems": 5
+                },
+                "closing": {"type": "string"}
+            },
+            "required": ["strengths", "weaknesses", "next_steps", "closing"],
+            "additionalProperties": False
+        },
+        "strict": True
+    }
+
+    mission_id = submission_data.get("mission_id", "")
+    
+    # image_detective는 interpretation_lens 기반 비인지주의 피드백
+    if mission_id == "image_detective":
+        interpretation_lens = mission_details.get("interpretation_lens", "사물")
+        prompt = (
+            "너는 학생 학습 코치를 도와주는 한국어 튜터야. "
+            f"학생은 이미지를 '{interpretation_lens}' 관점으로 보고 단어를 선택했어.\n\n"
+            "**중요 규칙:**\n"
+            "- 정답 단서를 판정하지 말고, 학생이 선택한 관점(interpretation_lens)을 중심으로:\n"
+            f"  * 왜 '{interpretation_lens}' 관점으로 보는 것이 자연스러운지 설명\n"
+            "  * 다른 관점(사물/행동/장소/느낌 중)으로 보면 무엇이 보일 수 있는지 제시\n"
+            "- 맞다/틀리다 언급 없이, 학생의 해석 과정 자체를 존중하고 기술\n"
+            "- 피드백 구조:\n"
+            f"  1) strengths: '{interpretation_lens}' 관점에서 어떻게 탐색했는지 과정 서술 (2~3개)\n"
+            "  2) weaknesses: 이 관점의 특성이나 한계를 중립적으로 설명 (1~2개, 비난 금지)\n"
+            "  3) next_steps: 다음 문제에서 다른 관점을 1번 시도하는 등 구체적 행동 제안 (2~3개)\n"
+            "  4) closing: 관점 탐색을 격려하는 한 문장\n"
+            "- 톤: '~해볼 수 있어요' 같은 제안 형태, 지시 금지"
+        )
+    # mystery_20_questions는 기존 비인지주의 프롬프트 유지
+    elif mission_id == "mystery_20_questions":
+        prompt = (
+            "너는 학생 학습 코치를 도와주는 한국어 튜터야. "
+            "입력된 제출 데이터와 미션 상세를 기반으로, 비인지주의 관점에서 피드백을 작성해줘.\n\n"
+            "**중요 규칙:**\n"
+            "- 정오판단(맞다/틀리다), 효율/전략 비교 같은 인지주의 표현을 절대 사용하지 말 것\n"
+            "- 피드백은 항상 3단 구조로:\n"
+            "  1) strengths: 학습자가 어떻게 해석하고 탐구했는지 과정을 서술 (2~3개)\n"
+            "  2) weaknesses: 그 과정의 의미나 한계를 비난 없이 중립적으로 설명 (1~2개)\n"
+            "  3) next_steps: 다음 활동에서 스스로 시도할 수 있는 구체적 변화 (2~3개)\n"
+            "  4) closing: 과정을 인정하고 탐구를 격려하는 한 문장\n"
+            "- 톤: 친근하지만 평가하지 않고, 학습자의 사고 과정을 존중하며 기술\n"
+            "- next_steps는 '~하세요' 같은 지시가 아닌 '~해볼 수 있어요' 같은 제안 형태로"
+        )
+    else:
+        # writer 등 기타 활동은 기존 코칭 스타일 유지
+        prompt = (
+            "너는 학생 학습 코치를 도와주는 한국어 튜터야. "
+            "입력된 제출 데이터와 미션 상세를 기반으로, 친근하고 격려하는 톤으로 요약 피드백을 만들어줘. "
+            "next_steps는 바로 실행 가능한 구체적 행동 형태로 작성해줘."
+        )
+
+    try:
+        resp = client.responses.create(
+            model="gpt-4o-mini",
+            input=[{"role": "system", "content": prompt}, {"role": "user", "content": str({"submission": submission_data, "mission_details": mission_details})}],
+            response_format={"type": "json_schema", "json_schema": json_schema}
+        )
+
+        content = resp.output_text if hasattr(resp, "output_text") else None
+        if not content:
+            return None
+        import json
+        return json.loads(content)
+    except Exception:
+        return None
 
 def generate_image_with_dalle(word):
     """OpenAI DALL-E 3를 사용하여 이미지 생성
@@ -829,7 +932,7 @@ def show_step3_image_detective():
                 answer = option
                 answer_type = st.session_state.detective_option_types.get(answer, "unknown")
                 
-                # 세션에 저장
+                # 세션에 저장 (해석 관점은 기본값 사용)
                 st.session_state.detective_target = target
                 st.session_state.detective_answer = answer
                 st.session_state.detective_answer_type = answer_type
@@ -891,8 +994,10 @@ def show_step3_activity(selected_mission):
         if st.session_state.mystery_hint_level >= 1:
             st.success(f"**힌트 1:** 이 단어의 의미를 생각해보세요!")
         if st.session_state.mystery_hint_level >= 2:
-            first_letter = st.session_state.mystery_target_word[0].upper()
-            st.success(f"**힌트 2:** 첫 글자는 '{first_letter}'입니다!")
+            target_word = st.session_state.mystery_target_word
+            if target_word and len(target_word) > 0:
+                first_letter = target_word[0].upper()
+                st.success(f"**힌트 2:** 첫 글자는 '{first_letter}'입니다!")
         if st.session_state.mystery_hint_level >= 3:
             st.success(f"**정답:** {st.session_state.mystery_target_word}")
         
@@ -940,13 +1045,10 @@ def show_step3_activity(selected_mission):
             if len(story.strip()) < 10:
                 st.error("최소 10자 이상 작성해주세요.")
             else:
-                # AI 피드백 생성
-                with st.spinner("🤖 AI 선생님이 피드백을 작성하고 있어요..."):
-                    feedback = get_writing_feedback(story, st.session_state.writer_keywords)
-                
-                st.session_state.writer_feedback = feedback
                 st.session_state.activity_answer = story
                 st.session_state.activity_score = 85
+                # 이번 제출에서 사용한 키워드 보존
+                st.session_state.writer_keywords_used = st.session_state.get("writer_keywords", [])
                 st.session_state.writer_keywords = None  # 초기화
                 st.session_state.step = 4
                 st.rerun()
@@ -955,6 +1057,9 @@ def show_step3_activity(selected_mission):
 def show_step4_report(quiz_score, activity_score, selected_mission_title):
     """Step 4: 최종 리포트"""
     st.header("Step 4️⃣ 최종 리포트")
+    
+    # 분석 리포트 변수 초기화 (예외 발생 시에도 참조 가능하도록)
+    insights = None
     
     # Firestore에 결과 저장
     try:
@@ -991,6 +1096,7 @@ def show_step4_report(quiz_score, activity_score, selected_mission_title):
                 "result_type": st.session_state.get("detective_answer_type", "unknown"),
                 "target_word": st.session_state.get("detective_target", ""),
                 "student_answer": st.session_state.get("detective_answer", ""),
+                "interpretation_lens": st.session_state.get("detective_interpretation_lens", "사물"),
             }
         
         elif mission_id == "mystery_20_questions":
@@ -1003,12 +1109,32 @@ def show_step4_report(quiz_score, activity_score, selected_mission_title):
         elif mission_id == "writer":
             mission_details = {
                 "student_text": st.session_state.get("activity_answer", ""),
-                "ai_feedback": st.session_state.get("writer_feedback", ""),
-                "keywords_used": st.session_state.get("writer_keywords", []),
+                "keywords_used": st.session_state.get("writer_keywords_used", []),
             }
         
         submission_data["mission_details"] = mission_details
+
+        # OpenAI 학습 분석 리포트 생성 (저장 전에 먼저 생성)
+        try:
+            with st.spinner("🧠 학습 분석 리포트를 생성 중..."):
+                insights = generate_report_insights_with_openai(submission_data, mission_details)
+        except Exception as e:
+            st.warning(f"리포트 생성 중 오류: {str(e)}")
+            insights = None
         
+        # 실패/예외 시 Fallback (항상 유효한 insights 보장)
+        if not insights:
+            insights = {
+                "strengths": ["지문 이해와 문제 해결에 성실히 참여했습니다.", "학습 활동에 적극적으로 참여하는 태도가 좋습니다."],
+                "weaknesses": ["핵심 단어와 표현의 정확도를 더 높일 필요가 있습니다."],
+                "next_steps": ["오늘 배운 핵심 단어 5개를 소리 내어 읽고 예문을 1개씩 작성하세요.", "이미지/문장 힌트를 활용해 유사어와 반의어를 구분해보세요.", "매일 10분씩 영어 단어 복습 시간을 가지세요."],
+                "closing": "좋은 출발이에요! 꾸준히 연습하면 금방 실력이 올라갑니다. 화이팅!"
+            }
+        
+        # 분석 결과를 저장에 포함 (insights 생성 후)
+        submission_data["report_insights"] = insights
+        submission_data["report_insights_model"] = "gpt-4o-mini"
+
         # Firestore 저장
         db.collection("readfit_submissions").add(submission_data)
         
@@ -1070,6 +1196,25 @@ def show_step4_report(quiz_score, activity_score, selected_mission_title):
             st.caption("💡 **학습 팁**: 이미지를 더 자세히 관찰해보세요. 그림 속 힌트들을 놓치지 마세요!")
         
         st.divider()
+
+    # OpenAI 학습 분석 리포트 출력 섹션 (모든 활동 통합)
+    try:
+        st.subheader("🧠 학습 분석 리포트 (강점 · 다음 학습)")
+        if insights:
+            if insights.get("strengths"):
+                st.markdown("**강점**")
+                for s in insights["strengths"]:
+                    st.write(f"- {s}")
+            if insights.get("next_steps"):
+                st.markdown("**다음 학습**")
+                for n in insights["next_steps"]:
+                    st.write(f"- {n}")
+            if insights.get("closing"):
+                st.info(insights["closing"])
+        else:
+            st.info("분석 리포트를 생성하지 못했습니다. 다음 학습으로 핵심 단어 복습과 예문 작성부터 시도해보세요.")
+    except Exception:
+        st.info("분석 리포트 표시 중 문제가 발생했습니다. 다음 학습으로 핵심 단어 복습을 권장합니다.")
     
     summary_col1, summary_col2 = st.columns(2)
     
@@ -1267,10 +1412,6 @@ def show_teacher_results():
                         key=f"writer_text_{idx}"
                     )
                     
-                    st.subheader("🤖 AI 피드백")
-                    ai_feedback = mission_details.get("ai_feedback", "피드백 없음")
-                    st.markdown(ai_feedback)
-                    
                 elif mission_id == "mystery_20_questions":
                     st.subheader("🕵️ 스무고개 결과")
                     st.write(f"**목표 단어:** {mission_details.get('target_word', 'N/A')}")
@@ -1290,6 +1431,28 @@ def show_teacher_results():
                     st.write(f"**목표 단어:** {mission_details.get('target_word', 'N/A')}")
                     st.write(f"**학생 답:** {mission_details.get('student_answer', 'N/A')}")
                     st.write(f"**답변 유형:** {result_type_map.get(result_type, result_type)}")
+                
+                # 리포트 인사이트 (모든 미션에 대해 표시)
+                st.divider()
+                report_insights = data.get("report_insights")
+                if report_insights and isinstance(report_insights, dict):
+                    st.subheader("🧠 학습 분석 리포트 (강점 · 다음 학습)")
+                    strengths = report_insights.get("strengths", [])
+                    next_steps = report_insights.get("next_steps", [])
+                    closing = report_insights.get("closing")
+                    
+                    if strengths:
+                        st.markdown("**강점**")
+                        for s in strengths:
+                            st.write(f"- {s}")
+                    if next_steps:
+                        st.markdown("**다음 학습**")
+                        for n in next_steps:
+                            st.write(f"- {n}")
+                    if closing:
+                        st.info(closing)
+                else:
+                    st.info("📊 AI 학습 분석 리포트가 생성되지 않았습니다.")
     
     except Exception as e:
         st.error(f"⚠️ 데이터 조회 중 오류 발생: {str(e)}")
