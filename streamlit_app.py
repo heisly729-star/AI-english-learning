@@ -883,10 +883,10 @@ def show_step3_image_detective():
     
     # 단어 및 이미지 생성 로직
     if st.session_state.detective_target_word is None:
-        # 간단한 단어 풀에서 랜덤 선택
-        word_pool = ["dog", "cat", "tree", "house", "car", "sun", "moon", 
-                     "flower", "bird", "book", "apple", "hat", "shoes", "bicycle"]
-        target_word = random.choice(word_pool)
+        # 학습한 지문에서 단어 추출 (3글자 이상 명사 우선)
+        text = st.session_state.get("reading_text", "The dog runs in the park.")
+        words = [w.strip('.,!?;:"()[]') for w in text.split() if len(w.strip('.,!?;:"()[]')) > 3]
+        target_word = random.choice(words) if words else "dog"
         st.session_state.detective_target_word = target_word
         
         # AI를 통해 교육적 오답 생성
@@ -977,7 +977,7 @@ def show_step3_activity(selected_mission):
             
             st.session_state.mystery_target_word = target
             st.session_state.mystery_text_with_blank = text.replace(target, "[ ❓ ]", 1)
-            st.session_state.mystery_hint_level = 0  # 0: 숨김, 1: 의미, 2: 첫글자, 3: 정답
+            st.session_state.mystery_hint_level = 0  # 0: 숨김, 1~10: 단계별 힌트
         
         # 빈칸이 있는 지문 표시
         st.info(st.session_state.mystery_text_with_blank)
@@ -985,21 +985,39 @@ def show_step3_activity(selected_mission):
         st.divider()
         
         # 힌트 버튼
-        if st.session_state.mystery_hint_level < 3:
+        if st.session_state.mystery_hint_level < 10:
             if st.button("💡 힌트 보기", key="mystery_hint_btn"):
                 st.session_state.mystery_hint_level += 1
                 st.rerun()
         
-        # 힌트 표시
-        if st.session_state.mystery_hint_level >= 1:
-            st.success(f"**힌트 1:** 이 단어의 의미를 생각해보세요!")
-        if st.session_state.mystery_hint_level >= 2:
-            target_word = st.session_state.mystery_target_word
-            if target_word and len(target_word) > 0:
-                first_letter = target_word[0].upper()
-                st.success(f"**힌트 2:** 첫 글자는 '{first_letter}'입니다!")
-        if st.session_state.mystery_hint_level >= 3:
-            st.success(f"**정답:** {st.session_state.mystery_target_word}")
+        # 힌트 표시 (10단계)
+        target_word = st.session_state.mystery_target_word
+        hint_level = st.session_state.mystery_hint_level
+        
+        if hint_level >= 1:
+            st.success(f"**힌트 1:** 이 단어는 지문에 나온 중요한 단어입니다.")
+        if hint_level >= 2:
+            st.success(f"**힌트 2:** 단어의 길이는 {len(target_word)}글자입니다.")
+        if hint_level >= 3 and len(target_word) > 0:
+            st.success(f"**힌트 3:** 첫 글자는 '{target_word[0].upper()}'입니다.")
+        if hint_level >= 4 and len(target_word) > 1:
+            st.success(f"**힌트 4:** 마지막 글자는 '{target_word[-1].lower()}'입니다.")
+        if hint_level >= 5 and len(target_word) > 2:
+            st.success(f"**힌트 5:** 두 번째 글자는 '{target_word[1].lower()}'입니다.")
+        if hint_level >= 6:
+            vowels = [c for c in target_word.lower() if c in 'aeiou']
+            st.success(f"**힌트 6:** 이 단어에는 모음이 {len(vowels)}개 있습니다.")
+        if hint_level >= 7 and len(target_word) > 3:
+            revealed = target_word[0] + '_' * (len(target_word) - 2) + target_word[-1]
+            st.success(f"**힌트 7:** 단어 패턴: {revealed}")
+        if hint_level >= 8 and len(target_word) > 2:
+            mid_char = target_word[len(target_word)//2]
+            st.success(f"**힌트 8:** 가운데 글자는 '{mid_char.lower()}'입니다.")
+        if hint_level >= 9:
+            revealed = ''.join([c if i % 2 == 0 else '_' for i, c in enumerate(target_word)])
+            st.success(f"**힌트 9:** 더 많은 글자: {revealed}")
+        if hint_level >= 10:
+            st.success(f"**정답:** {target_word}")
         
         st.divider()
         
