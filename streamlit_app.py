@@ -1,19 +1,137 @@
 """
 ReadFit - 영어 학습 플랫폼
-Streamlit + Firebase + OpenAI를 활용한 인터랙티브 영어 학습 도구
+Streamlit + Firebase를 활용한 인터랙티브 영어 학습 도구
 """
 
 import streamlit as st
 import random
 import string
-import os
+import base64
 from datetime import datetime
-# Note: OpenAI client import removed. The app does not currently
-# use OpenAI APIs, and importing the client caused a runtime error
-# if the package is not installed. Re-add only if needed.
+import google.generativeai as genai
+from openai import OpenAI
+
 
 # ==========================================================================
-# GLOBAL STYLES (기존 유지)
+# UTILITY FUNCTIONS
+# ==========================================================================
+
+def generate_image_with_dalle(word):
+    """OpenAI DALL-E 3를 사용하여 이미지 생성
+    
+    Args:
+        word (str): 그릴 단어
+        
+    Returns:
+        bytes or str: 이미지 바이트 데이터 또는 URL
+    """
+    api_key = st.secrets.get("OPENAI_API_KEY")
+    
+    if api_key:
+        try:
+            client = OpenAI(api_key=api_key)
+            result = client.images.generate(
+                model="dall-e-3",
+                prompt=f"Kid-friendly, colorful illustration of '{word}' on simple background",
+                size="1024x1024",
+                response_format="b64_json"
+            )
+            b64_data = result.data[0].b64_json
+            if b64_data:
+                return base64.b64decode(b64_data)
+        except Exception as e:
+            st.warning(f"OpenAI 이미지 생성 실패: {e}")
+    
+    # 폴백: Picsum 이미지
+    return f"https://picsum.photos/seed/{word}/512/512"
+
+
+def get_educational_distractors(word):
+    """OpenAI GPT를 사용하여 교육적 오답 생성
+    
+    Args:
+        word (str): 정답 단어
+        
+    Returns:
+        dict: {"semantic": str, "spelling": str, "random": str}
+    """
+    api_key = st.secrets.get("OPENAI_API_KEY")
+    
+    if not api_key:
+        return {"semantic": "dog", "spelling": "log", "random": "desk"}
+    
+    try:
+        client = OpenAI(api_key=api_key)
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[{
+                "role": "user",
+                "content": f"""For the English word '{word}', generate 3 wrong answer options for a children's quiz:
+1. Semantic distractor: A word with similar meaning or same category
+2. Spelling distractor: A word that looks/sounds similar
+3. Random distractor: A completely unrelated simple word
+
+Return ONLY a JSON object like: {{"semantic": "word1", "spelling": "word2", "random": "word3"}}"""
+            }],
+            temperature=0.7
+        )
+        
+        import json
+        result = json.loads(response.choices[0].message.content)
+        return result
+    except Exception as e:
+        st.warning(f"오답 생성 실패: {e}")
+        return {"semantic": "dog", "spelling": "log", "random": "desk"}
+
+
+def get_writing_feedback(text, keywords):
+    """OpenAI GPT를 사용하여 학생 작문 피드백 생성
+    
+    Args:
+        text (str): 학생이 작성한 텍스트
+        keywords (list): 포함되어야 할 키워드 리스트
+        
+    Returns:
+        str: 한국어 피드백 메시지
+    """
+    api_key = st.secrets.get("OPENAI_API_KEY")
+    
+    if not api_key:
+        return "피드백 생성 중 오류가 발생했습니다."
+    
+    try:
+        client = OpenAI(api_key=api_key)
+        keywords_str = ", ".join(keywords)
+        
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[{
+                "role": "user",
+                "content": f"""학생이 영어 작문을 했습니다. 다음을 확인해주세요:
+
+작문 내용:
+{text}
+
+필수 키워드: {keywords_str}
+
+다음을 포함한 한국어 피드백을 작성해주세요:
+1. 전체적인 평가 (1-2줄)
+2. 필수 키워드 사용 여부 체크
+3. 문법/철자 오류가 있다면 간단히 수정 제안
+4. 격려의 말
+
+피드백은 초등학생이 이해하기 쉽게 친근하게 작성해주세요."""
+            }],
+            temperature=0.7
+        )
+        
+        return response.choices[0].message.content
+    except Exception as e:
+        return f"피드백 생성 중 오류: {e}"
+
+
+# ==========================================================================
+# GLOBAL STYLES
 # ==========================================================================
 
 def apply_global_styles():
@@ -25,6 +143,7 @@ def apply_global_styles():
             background: radial-gradient(circle at 10% 20%, #e0f2fe 0%, #f8fafc 30%, #f3e8ff 65%, #fdf2f8 100%);
         }
         div.block-container { padding-top: 2rem; }
+        /* 헤더 중앙 정렬 */
         .login-hero { text-align: center; margin-bottom: 0.25rem; }
         .login-hero h1 { margin: 0; font-size: 32px; color: #0f172a; font-weight: 800; }
         .login-sub { text-align: center; color: #475569; font-weight: 700; font-size: 18px; margin-bottom: 1.5rem; }
@@ -38,6 +157,7 @@ def apply_global_styles():
         .card + .card { margin-top: 16px; }
         .section-title { margin: 0 0 8px 0; font-weight: 800; color: #0f172a; }
         .muted { color: #64748b; font-size: 13px; }
+        /* 로그인 탭 컨테이너 카드화 */
         div[data-testid="stTabs"] > div:first-child {
             background: rgba(255,255,255,0.94);
             padding: 18px;
@@ -45,6 +165,7 @@ def apply_global_styles():
             box-shadow: 0 20px 60px rgba(15,23,42,0.12);
             border: 1px solid #e2e8f0;
         }
+        /* 입력 및 버튼 공통 */
         .stTextInput > div > div > input,
         .stTextArea textarea,
         .stSelectbox > div > div > select,
@@ -57,29 +178,6 @@ def apply_global_styles():
             border-radius: 12px !important;
             font-weight: 700;
         }
-        .mission-card {
-            background: rgba(255,255,255,0.95);
-            border-radius: 16px;
-            padding: 24px;
-            border: 2px solid #e2e8f0;
-            text-align: center;
-            cursor: pointer;
-            transition: all 0.3s;
-        }
-        .mission-card:hover {
-            border-color: #667eea;
-            box-shadow: 0 12px 24px rgba(102, 126, 234, 0.15);
-        }
-        .mission-badge {
-            display: inline-block;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 4px 12px;
-            border-radius: 20px;
-            font-size: 12px;
-            font-weight: 700;
-            margin-top: 8px;
-        }
         </style>
         """,
         unsafe_allow_html=True,
@@ -87,184 +185,7 @@ def apply_global_styles():
 
 
 # ============================================================================
-# FIREBASE INITIALIZATION (기존 유지)
-# ============================================================================
-
-@st.cache_resource
-def init_firebase():
-    """Firebase를 초기화합니다 (캐시됨)"""
-    try:
-        from firebase_config import initialize_firebase, get_firestore_client, get_storage_bucket
-        initialize_firebase()
-        return get_firestore_client, get_storage_bucket
-    except Exception as e:
-        st.error(f"Firebase 초기화 실패: {e}")
-        st.stop()
-
-try:
-    get_firestore_client, get_storage_bucket = init_firebase()
-except Exception:
-    pass
-
-
-# ============================================================================
-# AUTHENTICATION (기존 유지)
-# ============================================================================
-
-def authenticate_teacher(email, password):
-    """Firebase Authentication으로 교사 인증"""
-    try:
-        import requests
-        from firebase_config import get_web_api_key
-        
-        api_key = get_web_api_key()
-        if not api_key:
-            return {"success": False, "error": "Firebase API Key를 찾을 수 없습니다."}
-        
-        url = f"https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key={api_key}"
-        payload = {"email": email, "password": password, "returnSecureToken": True}
-        response = requests.post(url, json=payload)
-        data = response.json()
-        
-        if response.status_code == 200:
-            return {"success": True, "user_email": data.get("email", email), "user_id": data.get("localId")}
-        else:
-            error_message = data.get("error", {}).get("message", "로그인 실패")
-            error_map = {
-                "INVALID_EMAIL": "유효하지 않은 이메일 주소입니다.",
-                "INVALID_PASSWORD": "비밀번호가 틀렸습니다.",
-                "USER_DISABLED": "비활성화된 사용자입니다.",
-                "USER_NOT_FOUND": "등록되지 않은 이메일입니다."
-            }
-            return {"success": False, "error": error_map.get(error_message, error_message)}
-    except Exception as e:
-        return {"success": False, "error": f"인증 오류: {str(e)}"}
-
-
-# =========================================================================
-# IMAGE GENERATION (OpenAI 사용 + 안전한 폴백)
-# ============================================================================
-
-def generate_image_with_dalle(word):
-    """OpenAI로 먼저 생성, 실패 시 단계적 폴백."""
-    import base64
-
-    # 미니멀 폴백(1x1 PNG) - PIL도 없을 때 대비
-    tiny_png = base64.b64decode(
-        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAuMBgQdX8FAAAAAASUVORK5CYII="
-    )
-
-    # 1) OpenAI 시도 (항상 실행, 키는 secrets에서 가져옴)
-    api_key = None
-    try:
-        api_key = st.secrets["OPENAI_API_KEY"]
-    except Exception as e:
-        st.error(f"OPENAI_API_KEY가 설정되지 않았습니다: {e}")
-
-    if api_key:
-        try:
-            from openai import OpenAI
-
-            client = OpenAI(api_key=api_key)
-            prompt = f"A colorful, kid-friendly illustration of '{word}', simple background"
-            result = client.images.generate(
-                model="dall-e-3",
-                prompt=prompt,
-                size="1024x1024",
-                response_format="b64_json"
-            )
-            b64_data = result.data[0].b64_json
-            if b64_data:
-                return base64.b64decode(b64_data)
-            else:
-                st.error("OpenAI에서 이미지 데이터가 없습니다")
-        except Exception as e:
-            st.error(f"OpenAI 이미지 생성 실패: {e}")
-
-    # 2) 외부 무료 이미지 서비스(picsum) 사용 시도
-    try:
-        from urllib.parse import quote
-        seed = quote(word)
-        return f"https://picsum.photos/seed/{seed}/640/360"
-    except Exception as e:
-        st.error(f"Picsum 로드 실패: {e}")
-
-    # 3) 폴백: 로컬 플레이스홀더 PNG 생성 (Pillow 필요)
-    try:
-        from PIL import Image, ImageDraw, ImageFont
-        import io
-
-        img = Image.new("RGB", (640, 360), color=(240, 243, 255))
-        draw = ImageDraw.Draw(img)
-        title = "Image Detective"
-        label = f"Guess: {word}"
-
-        try:
-            font_title = ImageFont.truetype("DejaVuSans-Bold.ttf", 32)
-            font_body = ImageFont.truetype("DejaVuSans.ttf", 24)
-        except Exception:
-            font_title = ImageFont.load_default()
-            font_body = ImageFont.load_default()
-
-        draw.text((40, 100), title, fill=(60, 60, 90), font=font_title)
-        draw.text((40, 180), label, fill=(80, 90, 120), font=font_body)
-
-        buf = io.BytesIO()
-        img.save(buf, format="PNG")
-        buf.seek(0)
-        return buf.getvalue()
-    except Exception as e:
-        st.error(f"로컬 이미지 생성 실패: {e}")
-        return tiny_png
-
-
-# ============================================================================
-# UTILITY FUNCTIONS
-# ============================================================================
-
-def generate_access_code():
-    """6자리 랜덤 숫자 코드 생성"""
-    return "".join(random.choices(string.digits, k=6))
-
-
-def check_access_code_exists(code):
-    """Firestore에서 해당 접속 코드가 존재하는지 확인"""
-    try:
-        db = get_firestore_client()
-        doc = db.collection("readfit_assignments").document(code).get()
-        return doc.exists, doc.to_dict() if doc.exists else None
-    except Exception:
-        return False, None
-
-
-def save_assignment_to_firebase(access_code, unit, difficulty, quiz_data, text):
-    """과제를 Firestore에 저장"""
-    try:
-        db = get_firestore_client()
-        assignment = {
-            "access_code": access_code,
-            "unit": unit,
-            "difficulty": difficulty,
-            "text": text,
-            "quiz": quiz_data,
-            "created_at": datetime.now(),
-            "status": "active"
-        }
-        db.collection("readfit_assignments").document(access_code).set(assignment)
-        return True
-    except Exception as e:
-        st.error(f"과제 저장 오류: {e}")
-        return False
-
-
-def logout():
-    """로그아웃 처리"""
-    st.session_state.clear()
-    st.rerun()
-
-
-# ============================================================================
-# YBM 교과서 데이터 (기존 유지)
+# 0. YBM 교과서 데이터
 # ============================================================================
 
 YBM_TEXTBOOK = {
@@ -281,7 +202,7 @@ YBM_TEXTBOOK = {
         "Advanced": "Today marks Cross Country Race Day in New Zealand, a significant athletic event at our institution. Participants undertake a challenging four-kilometer course through wooded terrain characterized by undulating hills and dense vegetation. This endurance event, while physically demanding, represents an achievable goal for all students who have trained adequately. At present, competitors are assembled at the starting line, demonstrating a mixture of anticipation and determination. Cross country running cultivates not merely physical stamina but also mental resilience and strategic pacing abilities. The communal aspect of cheering for classmates fosters school spirit and collective achievement despite the individual nature of the competition. The Philippines boasts remarkable linguistic diversity, with over 100 distinct languages spoken throughout the archipelago. August is designated as National Language Month, during which educational institutions organize numerous celebratory events. These include oratorical competitions, poetic recitations, and theatrical performances conducted in various indigenous languages. Such initiatives serve to preserve and promote linguistic heritage in an era of increasing globalization. Students gain appreciation for the rich tapestry of Filipino linguistic and cultural traditions. These educational activities reinforce the importance of multilingualism as both a cultural asset and a cognitive advantage. At my American school, comprehensive music education constitutes a mandatory component of the curriculum. Every student participates in either the orchestra, choral ensemble, or instrumental band. An upcoming concert in the school's auditorium will showcase our collective musical development. I shall perform violin in the orchestra, while my peers Tom and Annie will contribute vocal and guitar performances respectively. Despite pre-performance anxiety, the experience of collaborative musical creation proves immensely rewarding. Music education has been demonstrated to enhance cognitive abilities, emotional intelligence, and collaborative skills. Today's digital writing contest in Korea exemplifies the integration of technology with creative expression in contemporary education. Students compose narratives and capture photographic imagery using smartphones, subsequently publishing their work on the school's digital platform. The designated theme focuses on the school campus during the spring season. I intend to document the botanical beauty of our school garden through both prose and photography. This innovative pedagogical approach develops digital literacy, creative writing skills, and visual composition abilities simultaneously, preparing students for the multimedia communication landscape of the 21st century."
     },
     "Unit 3": {
-        "title": "Unit 3 - The Power of Small Acts",
+        "title": "Unit 3 - Food and Nutrition",
         "Beginner": "Food is very important for our health. We need to eat different kinds of food every day. A balanced diet includes fruits, vegetables, grains, proteins, and dairy products. For breakfast, many people eat cereal, toast, or eggs. Some people drink orange juice or milk. Breakfast gives us energy to start the day. For lunch, students often eat sandwiches, salads, or rice with vegetables. It is important to eat vegetables because they have many vitamins. Carrots are good for our eyes. Spinach makes us strong. Tomatoes have vitamin C. For dinner, families usually eat together. They might have chicken, fish, or beef with rice or potatoes. Drinking water is very important. We should drink at least eight glasses of water every day. Water helps our body work well. Some foods are not healthy. Candy and soda have too much sugar. Chips have too much salt. We should not eat too much fast food like hamburgers and pizza. These foods can make us sick if we eat them every day. Fruits are nature's candy. Apples, bananas, oranges, and grapes are delicious and healthy. They give us natural sugar and energy. We should eat five servings of fruits and vegetables every day. Protein helps build strong muscles. We can get protein from meat, fish, eggs, beans, and nuts. Calcium makes our bones and teeth strong. Milk, cheese, and yogurt have calcium. Growing children need calcium every day. Eating healthy food helps us grow, learn, and play. When we eat good food, we feel happy and strong. We can think better in school and run faster in sports.",
         "Intermediate": "Understanding nutrition is essential for maintaining a healthy lifestyle. Nutritionists recommend following the food pyramid or the newer MyPlate guidelines, which emphasize balanced portions of different food groups. A well-rounded diet should consist of whole grains, lean proteins, fruits, vegetables, and low-fat dairy products. Whole grains like brown rice, whole wheat bread, and oatmeal provide fiber and sustained energy throughout the day. Unlike refined grains, they help regulate blood sugar levels and promote digestive health. Proteins are the building blocks of our bodies. They repair tissues and support muscle growth. Good protein sources include chicken, fish, eggs, legumes, tofu, and nuts. Fish, particularly salmon and tuna, contain omega-3 fatty acids that benefit heart and brain health. Fruits and vegetables are rich in vitamins, minerals, and antioxidants. These nutrients strengthen our immune system and protect against diseases. Colorful vegetables like broccoli, bell peppers, and sweet potatoes offer different nutritional benefits. Nutritionists suggest eating a rainbow of colors to ensure varied nutrient intake. Calcium and vitamin D work together to build strong bones. Dairy products, fortified plant-based milk, and leafy greens provide calcium. Sunlight helps our bodies produce vitamin D. However, modern eating habits often include too much processed food, which contains excessive sodium, sugar, and unhealthy fats. These ingredients contribute to obesity, diabetes, and heart disease. Reading nutrition labels helps us make informed choices about what we consume. Portion control is equally important. Even healthy foods can lead to weight gain if consumed in large quantities. Staying hydrated by drinking water instead of sugary beverages supports overall health and helps maintain proper body functions.",
         "Advanced": "Nutritional science has evolved significantly over the past decades, revealing the complex relationship between diet and overall health. Contemporary research emphasizes not merely the quantity of food consumed but the quality and nutritional density of dietary choices. The concept of functional foods—items that provide health benefits beyond basic nutrition—has gained prominence in nutritional discourse. These include foods rich in probiotics, antioxidants, and phytonutrients that may help prevent chronic diseases. The Mediterranean diet, extensively studied for its health benefits, exemplifies a balanced approach to nutrition. It prioritizes olive oil, fish, whole grains, legumes, and abundant fresh produce while limiting red meat and processed foods. Research indicates this dietary pattern reduces cardiovascular disease risk and promotes longevity. Macronutrient balance—the ratio of carbohydrates, proteins, and fats—remains a subject of ongoing scientific investigation. While traditional guidelines recommended low-fat diets, current evidence suggests that healthy fats from sources like avocados, nuts, and fatty fish play crucial roles in hormone production, nutrient absorption, and cellular function. The glycemic index and glycemic load concepts help individuals understand how different carbohydrates affect blood sugar levels. Complex carbohydrates with low glycemic indices provide sustained energy and better metabolic outcomes compared to simple sugars. Emerging research on the gut microbiome has revolutionized our understanding of nutrition's impact on health. The trillions of bacteria in our digestive system influence not only digestion but also immune function, mental health, and disease susceptibility. Fermented foods and dietary fiber support beneficial gut bacteria. However, nutritional requirements vary based on age, gender, activity level, and individual health conditions. Personalized nutrition, guided by genetic factors and biomarkers, represents the future of dietary recommendations, moving beyond one-size-fits-all guidelines."
@@ -292,210 +213,389 @@ YBM_TEXTBOOK = {
         "Intermediate": "My name is Yubin. My father and mother are computer engineers. My mother fell in love with him when she worked in India. Yes, my father is Indian. We're a family of three. We have two family traditions. Every spring, we visit the city's baseball park on the KBO's opening day. It's an exciting day. We wear our team's uniform and cheer for them loudly. We like to take pictures at the gates. When we visited the park for the first time, I was four years old. This tradition has continued for many years now. The excitement of opening day never gets old. Watching baseball together brings our family closer. We share the joy of victories and the disappointment of defeats. My father's birthday is in the fall. We do special things on his birthday. In the evening, we cook Indian chicken curry together. It's his favorite dish. We get special curry powder from my grandmother in India. It has the real taste of India. We all love a warm and tasty bowl of curry. Cooking together is a bonding experience. We talk, laugh, and share stories while preparing the meal. After dinner, we play pachisi. It's a traditional board game in India. My father played it when he was young. Last year, I lost the game and did the dishes. I really want to win this year! The game teaches us about strategy and patience. It also connects us to my father's childhood memories in India. Family traditions create wonderful memories. I love my family traditions and hope to keep them for a long time. These rituals give us a sense of identity and belonging. They remind us of our multicultural heritage and the love that binds us together.",
         "Advanced": "My name is Yubin. Both my parents are computer engineers who met professionally. My mother developed romantic feelings for my father during her employment tenure in India. Indeed, my father is of Indian descent, making our household a cross-cultural family unit of three members. We maintain two distinctive family traditions that reflect our bicultural heritage. Annually during spring, we attend the city's baseball stadium on the Korean Baseball Organization's opening day. This occasion represents a significant family ritual. We don matching team uniforms and enthusiastically support our chosen team with vocal encouragement. We habitually capture photographic memories at the stadium entrance gates. I was merely four years of age during our inaugural visit, and this tradition has persisted consistently ever since. The ceremonial aspect of opening day attendance transcends mere sports spectatorship; it represents a familial bonding experience and a celebration of Korean cultural participation. My father's birthday occurs during the autumn season. We observe specific commemorative practices on this occasion. During the evening hours, we collaboratively prepare Indian chicken curry, his preferred culinary dish. We utilize specialized curry powder procured from my paternal grandmother in India, ensuring authentic flavor profiles characteristic of genuine Indian cuisine. The communal preparation and consumption of this meal constitutes both a gastronomic experience and a cultural ritual connecting us to my father's heritage. Following the meal, we engage in pachisi, a traditional Indian board game with historical significance. My father participated in this game during his childhood in India. During last year's competition, my defeat resulted in dish-washing responsibilities. This year, I am determined to achieve victory through improved strategic gameplay. The game serves multiple functions: entertainment, strategic thinking development, and cultural transmission. Family traditions function as crucial mechanisms for creating enduring memories and establishing familial identity. I deeply value our family traditions and aspire to perpetuate them indefinitely. These practices represent more than mere routines; they embody our multicultural identity, preserve intergenerational connections, and reinforce the affective bonds that constitute our family unit. Such traditions provide continuity, meaning, and a sense of belonging in an increasingly globalized world."
     },
-    "Unit 5": {"title": "Unit 5 - Sports and Physical Activity", "Beginner": "Sample text...", "Intermediate": "Sample text...", "Advanced": "Sample text..."},
-    "Unit 6": {"title": "Unit 6 - Hobbies and Leisure Activities", "Beginner": "Sample text...", "Intermediate": "Sample text...", "Advanced": "Sample text..."},
-    "Unit 7": {"title": "Unit 7 - Travel and Exploring the World", "Beginner": "Sample text...", "Intermediate": "Sample text...", "Advanced": "Sample text..."},
-    "Unit 8": {"title": "Unit 8 - Career and Professional Life", "Beginner": "Sample text...", "Intermediate": "Sample text...", "Advanced": "Sample text..."}
+    "Unit 5": {
+        "title": "Unit 5 - Sports and Physical Activity",
+        "Beginner": "Sports are fun and good for our health. Many people around the world love sports. Soccer is the most popular sport globally. Players kick a ball and try to score goals. Basketball is another popular sport. Players bounce a ball and throw it through a hoop. Swimming is great exercise. It makes our arms, legs, and heart strong. Tennis is a sport played with rackets. Two or four players hit a ball over a net. Running is simple but very healthy. Many people jog in parks every morning. Playing sports has many benefits. Exercise makes our bodies strong and healthy. It helps our hearts work better and gives us more energy. Sports also make us happy. When we play sports, our brain releases chemicals that make us feel good. Team sports like soccer and basketball teach us important lessons. We learn to work together and help our teammates. We learn to follow rules and be fair. We also learn that practice makes us better. Even when we lose, we can learn and improve. Some people prefer individual sports like swimming or running. These sports help us set personal goals and challenge ourselves. Many schools have physical education classes. Students play different sports and learn about fitness. Some students join school sports teams. They practice after school and compete with other schools. Playing sports keeps kids active and healthy. It's also a great way to make friends. Everyone can enjoy sports, whether playing for fun or competing seriously. The important thing is to be active, try your best, and have fun while staying healthy.",
+        "Intermediate": "Physical activity and sports participation contribute significantly to overall health and personal development. Engaging in regular exercise strengthens cardiovascular systems, builds muscle tone, and enhances flexibility. Medical professionals recommend at least 150 minutes of moderate physical activity weekly for adults, while children should aim for 60 minutes daily. Athletic activities encompass diverse categories. Team sports like soccer, basketball, and volleyball foster collaboration and communication skills. Players must coordinate strategies, support teammates, and work toward common objectives. These experiences translate into valuable life skills applicable in academic and professional contexts. Individual sports such as swimming, running, and tennis cultivate self-discipline and personal responsibility. Athletes set individual goals, monitor progress, and develop mental resilience through training. Competitive swimming, for instance, requires consistent practice and technique refinement. Marathon runners demonstrate extraordinary endurance and dedication. Participation in sports also promotes psychological well-being. Physical activity reduces stress and anxiety while improving mood and self-esteem. The endorphins released during exercise create positive feelings and can alleviate symptoms of depression. Athletic involvement provides social connections and community belonging, particularly important for young people navigating social development. Moreover, sports teach essential values including perseverance, sportsmanship, and respect for opponents. Athletes learn to accept both victory and defeat gracefully, understanding that improvement comes through persistent effort. These character-building experiences shape individuals' approaches to challenges throughout life. From youth leagues to professional competitions, sports unite communities and transcend cultural boundaries, demonstrating universal values of excellence and fair play.",
+        "Advanced": "The multifaceted benefits of sports and physical activity extend far beyond mere physiological improvements, encompassing psychological, social, and cultural dimensions. Contemporary sports science examines the intricate relationship between physical activity and holistic human development. Physiologically, regular exercise induces numerous adaptations including enhanced cardiovascular efficiency, improved metabolic function, increased bone density, and optimized neuromuscular coordination. Research demonstrates that consistent physical activity significantly reduces risk factors for chronic diseases such as diabetes, hypertension, and certain cancers. The psychological dimensions of sports participation merit serious consideration. Athletic engagement facilitates development of mental toughness, emotional regulation, and cognitive flexibility. Sports psychology research reveals that athletes often demonstrate superior executive function, including enhanced attention control and decision-making capabilities developed through competitive experiences. Furthermore, athletic participation provides opportunities for experiencing flow states—optimal psychological experiences characterized by complete absorption in challenging activities. The social capital generated through sports participation proves invaluable. Team sports cultivate leadership abilities, conflict resolution skills, and cultural competence through interaction with diverse teammates. These interpersonal competencies transfer readily to professional environments, explaining why many organizations actively recruit former athletes. Sports also function as vehicles for social mobility and community integration, particularly for marginalized populations. From a sociocultural perspective, sports reflect and shape broader societal values. Competitive athletics demonstrate meritocratic principles while simultaneously revealing persistent inequities in access and opportunity. Contemporary discourse addresses issues of gender equality, racial justice, and economic accessibility within sports institutions. Professional athletics generates substantial economic activity while raising questions about commercialization and ethical considerations in sports management. Understanding sports requires recognizing these complex, interconnected dimensions that influence individual development and collective social dynamics."
+    },
+    "Unit 6": {
+        "title": "Unit 6 - Hobbies and Leisure Activities",
+        "Beginner": "Hobbies are activities we do for fun in our free time. Everyone should have hobbies because they make us happy and relaxed. Reading books is a popular hobby. When we read, we learn new things and visit different worlds through stories. Many people like reading adventure stories, mystery books, or books about animals. Drawing and painting are creative hobbies. With just paper and colored pencils, we can create beautiful pictures. Some people draw landscapes, others draw people or animals. Art helps us express our feelings and ideas. Playing musical instruments is another wonderful hobby. The piano, guitar, and violin are common instruments. Learning music takes time and practice, but it is very rewarding. Music makes our brains work better and helps us concentrate. Collecting things is fun too. Some people collect stamps from different countries. Others collect coins, rocks, or trading cards. Collections teach us about history and different cultures. Gardening is a peaceful hobby. We can grow flowers, vegetables, or herbs in a garden or even in small pots on a balcony. Taking care of plants teaches us patience and responsibility. Watching plants grow is very satisfying. Sports and outdoor activities are active hobbies. Hiking, cycling, and swimming keep us healthy and strong. Photography is becoming very popular. With cameras or smartphones, we can capture special moments and beautiful scenes. Cooking is both useful and enjoyable. Trying new recipes and making delicious food for family and friends is rewarding. Hobbies give us something to look forward to after school or work. They help us develop new skills and meet people with similar interests.",
+        "Intermediate": "Leisure activities play a crucial role in maintaining work-life balance and personal well-being. Pursuing hobbies provides opportunities for self-expression, skill development, and stress relief. The benefits extend beyond simple entertainment, contributing to mental health and overall life satisfaction. Reading represents one of the most enriching leisure pursuits. Literature expands vocabulary, enhances critical thinking, and develops empathy by exposing readers to diverse perspectives and experiences. Whether fiction or non-fiction, reading stimulates imagination and provides intellectual engagement. Many people join book clubs to share insights and discuss themes with fellow enthusiasts. Artistic endeavors such as painting, drawing, or sculpting offer therapeutic benefits. The creative process facilitates emotional expression and mindfulness. Art therapy research demonstrates that creative activities reduce anxiety and promote psychological healing. Digital art has expanded possibilities, allowing artists to experiment with various media and techniques. Musical engagement, whether playing instruments or singing, activates multiple brain regions simultaneously. Neuroscience research indicates that musical training enhances memory, coordination, and cognitive flexibility. Many communities offer amateur orchestras or choirs where individuals can participate collectively. Physical hobbies including hiking, cycling, and rock climbing combine exercise with nature appreciation. These activities reduce stress while improving cardiovascular health. Outdoor recreation fosters environmental awareness and appreciation for natural beauty. Collecting reflects human fascination with categorization and completion. Whether stamps, coins, or vintage items, collections require research, organization, and knowledge acquisition. Serious collectors develop expertise in their specialized areas, sometimes contributing to academic understanding. The digital age has introduced new hobby categories. Gaming, coding, and content creation attract millions of enthusiasts worldwide. These pursuits develop technological literacy and creative problem-solving abilities. Ultimately, hobbies enrich life by providing purpose, challenge, and joy beyond professional obligations.",
+        "Advanced": "The psychology of leisure and recreational pursuits reveals profound insights into human motivation, identity formation, and well-being. Leisure activities serve functions beyond mere diversion, contributing significantly to self-actualization and life satisfaction. Contemporary research in positive psychology emphasizes the importance of engaging in personally meaningful activities that facilitate flow experiences, which are states of complete absorption where individuals lose self-consciousness and time awareness. Literary engagement exemplifies cognitively demanding leisure that yields substantial developmental benefits. Reading complex narratives enhances theory of mind, the capacity to understand others mental states, and cultivates empathetic understanding across cultural and temporal boundaries. Literary analysis develops critical thinking and interpretive skills transferable to numerous domains. Furthermore, bibliotherapy employs literature therapeutically to address psychological challenges and facilitate personal growth. Artistic creation engages neural networks associated with planning, motor control, and emotional processing. Neuroscientific investigations using functional magnetic resonance imaging reveal that artistic activities activate the default mode network, facilitating introspection and self-referential thought. Art-making serves as a form of non-verbal communication, particularly valuable for individuals who struggle with linguistic expression of complex emotions. Musical training produces remarkable neuroplastic changes, including increased gray matter volume in regions associated with motor control, auditory processing, and executive function. Longitudinal studies demonstrate that musical education enhances linguistic abilities, mathematical reasoning, and spatial-temporal skills. The social dimensions of ensemble performance foster collaborative abilities and collective emotional expression. Outdoor recreation reflects biophilia, humans innate connection to nature. Environmental psychology research demonstrates that natural environments reduce cognitive fatigue, lower cortisol levels, and enhance mood. The concept of wilderness therapy employs outdoor experiences to facilitate psychological healing and personal transformation. Collecting behaviors manifest deep-seated cognitive predispositions toward categorization and pattern recognition. Collections provide tangible manifestations of personal identity and intellectual interests. Museum-quality private collections occasionally contribute to scholarly research and cultural preservation. The digital revolution has democratized creative production, enabling unprecedented participation in media creation, knowledge sharing, and global communities of practice. These contemporary leisure forms challenge traditional distinctions between consumption and production, fostering participatory culture."
+    },
+    "Unit 7": {
+        "title": "Unit 7 - Travel and Exploring the World",
+        "Beginner": "Traveling is exciting and educational. When we visit new places, we see different things and learn about other cultures. Many families take vacations during summer. Some people go to the beach. They swim in the ocean, build sandcastles, and collect shells. The beach is relaxing and fun. Other families visit mountains. They go hiking on trails, breathe fresh air, and enjoy beautiful views. Mountain air is clean and healthy. Cities are interesting places to visit too. Big cities have tall buildings, museums, and famous landmarks. In London, people can see Big Ben and Buckingham Palace. In Paris, the Eiffel Tower is very famous. New York has the Statue of Liberty. Before traveling, people need to prepare. They pack clothes, toothbrushes, and other necessary items in suitcases. They check the weather to know what clothes to bring. Some people make lists so they don't forget anything important. There are many ways to travel. Airplanes are fast and can go to far places quickly. Trains are comfortable for traveling between cities. Buses are cheaper than planes and trains. Cars give families freedom to stop wherever they want. When traveling to other countries, people often learn new words in different languages. Saying hello, thank you, and goodbye in the local language is polite and helpful. Local people appreciate when visitors try to speak their language. Trying new foods is an exciting part of traveling. Each country has special dishes. Italian pizza and pasta are delicious. Chinese dumplings are tasty. Mexican tacos are spicy and flavorful. Traveling helps us understand that people everywhere have different customs but share similar feelings and dreams. It makes the world feel smaller and friendlier.",
+        "Intermediate": "Travel broadens perspectives and enriches understanding of global diversity. Exploring different regions exposes individuals to varied cultural practices, historical contexts, and natural environments. Tourism represents a significant economic sector while facilitating cross-cultural exchange and international understanding. Destination selection depends on personal interests and objectives. Historical tourism focuses on visiting sites of cultural and historical significance. Ancient ruins like Machu Picchu in Peru or the Colosseum in Rome connect visitors with past civilizations. Museums and heritage sites preserve cultural artifacts and narratives. Ecotourism emphasizes environmental conservation and sustainable practices. Travelers visit natural reserves, observe wildlife in habitats, and support conservation efforts. Destinations like the Galapagos Islands or African safaris offer remarkable biodiversity experiences while promoting ecological awareness. Adventure tourism attracts individuals seeking physical challenges and novel experiences. Activities include mountain climbing, scuba diving, and trekking through remote regions. These experiences test personal limits and create lasting memories. Effective travel planning enhances trip quality. Researching destinations, understanding local customs, and learning basic phrases in local languages demonstrate respect and facilitate positive interactions. Budget management ensures financial sustainability throughout trips. Cultural sensitivity remains crucial when traveling. Different societies maintain distinct social norms, religious practices, and communication styles. Observing and respecting these differences prevents misunderstandings and fosters mutual appreciation. Photography etiquette, dress codes, and behavioral expectations vary significantly across cultures. Transportation options influence travel experiences. Air travel enables rapid long-distance movement but contributes to carbon emissions. Train travel offers scenic routes and reduced environmental impact. Overland travel by bus or car provides flexibility and opportunities for spontaneous exploration. Accommodation choices range from budget hostels to luxury resorts, each offering distinct experiences and price points. Travel ultimately transforms individuals by challenging assumptions, expanding worldviews, and creating connections across geographical and cultural boundaries.",
+        "Advanced": "The anthropology of travel reveals complex motivations underlying human mobility and the profound impacts of tourism on both travelers and host communities. Contemporary travel encompasses diverse paradigms from mass tourism to transformative journeys focused on personal growth and cultural immersion. The tourism industry constitutes a significant component of global economic activity, generating employment and revenue while simultaneously raising concerns about sustainability, cultural commodification, and environmental degradation. The concept of sustainable tourism addresses the ecological footprint of travel. Climate change implications of aviation, overtourism's impact on fragile ecosystems, and resource consumption in tourist destinations necessitate thoughtful approaches. Responsible travelers minimize environmental impact through conscious transportation choices, supporting eco-certified accommodations, and respecting natural habitats. Community-based tourism initiatives empower local populations and distribute economic benefits more equitably. Cultural tourism presents both opportunities and challenges. While facilitating intercultural understanding and preserving heritage sites through economic incentives, tourism can also lead to cultural commodification where authentic practices become performative displays for commercial purposes. The tension between preservation and commercialization remains an ongoing concern in cultural heritage management. Travel writing and documentation shape collective understanding of places and peoples. Historical travel narratives often reflected colonial perspectives and orientalist frameworks that exoticized and misrepresented non-Western cultures. Contemporary travel discourse increasingly emphasizes respectful representation, avoiding stereotypes, and acknowledging power dynamics inherent in tourist-host relationships. Globalization has transformed travel accessibility and patterns. Budget airlines democratized international travel, while digital technologies facilitate planning, navigation, and documentation. However, this accessibility concentrates tourist flows toward popular destinations, exacerbating overtourism challenges in places like Venice, Barcelona, and certain Southeast Asian islands. The psychology of travel examines how journeys influence identity formation and perspective transformation. Immersive travel experiences can catalyze personal development by challenging preconceptions, fostering adaptability, and cultivating cultural intelligence. Extended travel or living abroad demonstrably enhances cognitive flexibility and creative thinking. Understanding travel requires recognizing it as a complex phenomenon shaped by economic forces, cultural exchanges, environmental considerations, and individual psychological processes, with implications extending far beyond simple leisure activity."
+    },
+    "Unit 8": {
+        "title": "Unit 8 - Career and Professional Life",
+        "Beginner": "Choosing a career is an important decision. A career is the work we do for many years. There are many different types of jobs. Doctors and nurses work in hospitals and help sick people get better. They study medicine for many years. Teachers work in schools. They help students learn reading, writing, math, and many other subjects. Teachers need to be patient and kind. Engineers design and build things like bridges, buildings, and machines. They use math and science in their work. Police officers and firefighters keep people safe. They are brave and help during emergencies. Artists and musicians create beautiful paintings, sculptures, or music. They need creativity and practice. Chefs work in restaurants and cook delicious meals. They need to know about different foods and recipes. Farmers grow food like vegetables, fruits, and grains. They work hard outdoors and take care of plants and animals. Office workers help companies run smoothly. They use computers and phones for their jobs. Some people work in stores and help customers find what they need. Others deliver mail or packages to homes and businesses. To prepare for a career, students need to work hard in school. Reading, writing, and math are important for almost every job. Some careers need special training or college education. People can also learn skills through practice and experience. It is good to think about what you enjoy doing. If you like helping people, you might become a doctor or teacher. If you enjoy building things, engineering might be good. If you love animals, you could be a veterinarian. Everyone has different talents and interests. Finding the right career makes work enjoyable and meaningful.",
+        "Intermediate": "Career development constitutes a crucial aspect of adult life, influencing financial stability, personal identity, and life satisfaction. The contemporary job market requires strategic planning, continuous skill development, and adaptability to changing economic conditions. Educational preparation varies significantly across professions. Traditional careers in medicine, law, and engineering require extensive formal education including undergraduate degrees, graduate programs, and professional certifications. Medical professionals complete four years of medical school followed by residency training lasting three to seven years depending on specialization. Legal careers require law school and passing bar examinations. The technology sector has transformed career landscapes dramatically. Software development, data science, and cybersecurity represent rapidly growing fields with substantial demand. These careers often prioritize demonstrable skills and portfolio work over traditional credentials, though computer science degrees remain valuable. Entrepreneurship appeals to individuals seeking autonomy and creative control. Starting businesses requires business acumen, risk tolerance, and persistent effort. While potentially rewarding, entrepreneurship involves financial uncertainty and demanding workloads. Successful entrepreneurs identify market needs, develop innovative solutions, and build effective teams. Professional development involves continuous learning throughout careers. Technological advancement, industry evolution, and changing best practices necessitate ongoing skill acquisition. Professional conferences, workshops, online courses, and industry certifications help workers remain competitive and advance in their fields. Work-life balance has gained prominence in career discussions. Traditional career trajectories emphasizing constant availability and prioritizing work over personal life increasingly face criticism. Many professionals now seek positions offering flexible schedules, remote work options, and respect for personal time. Networking significantly influences career advancement. Professional relationships facilitate knowledge exchange, collaboration opportunities, and job leads. Industry associations, alumni networks, and professional social media platforms enable connection with colleagues and mentors. Career transitions have become increasingly common. Individuals change careers multiple times throughout working lives, pursuing new interests, responding to market changes, or seeking better compensation. Transferable skills facilitate these transitions, allowing professionals to apply competencies across different contexts.",
+        "Advanced": "The sociology of work and career trajectories reveals how professional life intersects with broader economic structures, social identities, and individual agency. Contemporary career dynamics reflect tensions between traditional employment models and emerging work arrangements, shaped by technological disruption, globalization, and evolving organizational structures. The decline of lifelong employment with single organizations has fundamentally altered career paradigms. Rather than linear progression within hierarchical organizations, contemporary careers often follow non-linear paths involving lateral moves, industry transitions, and portfolio careers combining multiple income streams. This shift places greater responsibility on individuals for career management while reducing job security and institutional support. Credentialism—the increasing emphasis on educational credentials for employment—has intensified across sectors. Educational attainment correlates strongly with lifetime earnings and career opportunities. However, this trend raises concerns about accessibility and equity, as advanced degrees require substantial financial investment and time commitments that disproportionately burden certain populations. The gig economy represents a significant structural shift in employment relationships. Platform-based work offers flexibility and autonomy but often lacks benefits, job security, and labor protections associated with traditional employment. Debates continue regarding worker classification, rights, and the future of work in platform capitalism. Artificial intelligence and automation pose both opportunities and challenges for career planning. While technological advancement creates new roles requiring sophisticated skills, it simultaneously threatens to automate routine cognitive and manual tasks. Career resilience requires adaptability, continuous learning, and cultivation of distinctly human capabilities including creativity, emotional intelligence, and complex problem-solving. Professional identity formation involves integrating work roles into broader self-concepts. Careers provide not merely income but meaning, social status, and self-actualization opportunities. The psychological contract between employers and employees—mutual expectations regarding obligations and contributions—profoundly affects job satisfaction and organizational commitment. Gender, race, and socioeconomic background significantly influence career trajectories through mechanisms including discrimination, differential access to networks and mentorship, and systemic barriers. Addressing workplace equity requires institutional reforms, inclusive policies, and critical examination of organizational cultures and hiring practices. Understanding careers requires recognizing them as complex phenomena shaped by individual agency, structural constraints, technological forces, and cultural values, with profound implications for personal well-being and social organization."
+    }
 }
 
 
 # ============================================================================
-# QUIZ GENERATION
+# 1. FIREBASE INITIALIZATION (Lazy Loading) - 기존 유지
 # ============================================================================
 
-def generate_quiz_questions(unit):
-    """해당 Unit의 간단한 퀴즈 문제 생성"""
-    quiz_templates = {
-        "Unit 1": [
-            {"question": "What is Harin's main hobby?", "options": ["Swimming", "Running", "Dancing"], "answer": 1},
-            {"question": "What does Mike share on social media?", "options": ["Food pictures", "Fashion outfit pictures", "Travel photos"], "answer": 1},
-            {"question": "What does Elena love to visit?", "options": ["Restaurants", "Donut shops", "Bookstores"], "answer": 1}
-        ],
-        "Unit 2": [
-            {"question": "Which country celebrates Cross Country Race Day?", "options": ["USA", "New Zealand", "Philippines"], "answer": 1},
-            {"question": "How many languages are spoken in the Philippines?", "options": ["Over 50", "Over 100", "Over 150"], "answer": 1},
-            {"question": "What instrument does the narrator play?", "options": ["Piano", "Guitar", "Violin"], "answer": 2}
-        ],
-        "Unit 3": [
-            {"question": "What is essential for a healthy lifestyle?", "options": ["Sweets", "Balanced nutrition", "Fast food"], "answer": 1},
-            {"question": "How many glasses of water should we drink daily?", "options": ["4 glasses", "8 glasses", "12 glasses"], "answer": 1},
-            {"question": "Which nutrient is important for strong bones?", "options": ["Iron", "Calcium", "Sodium"], "answer": 1}
-        ],
-        "Unit 4": [
-            {"question": "Where is Yubin's father originally from?", "options": ["Korea", "India", "USA"], "answer": 1},
-            {"question": "When do they visit the baseball park?", "options": ["Fall", "Spring", "Summer"], "answer": 1},
-            {"question": "What traditional game do they play?", "options": ["Chess", "Pachisi", "Go"], "answer": 1}
-        ]
-    }
-    return quiz_templates.get(unit, quiz_templates["Unit 1"])
+@st.cache_resource
+def init_firebase():
+    """Firebase를 초기화합니다 (캐시됨)"""
+    try:
+        from firebase_config import initialize_firebase, get_firestore_client, get_storage_bucket
+        initialize_firebase()
+        return get_firestore_client, get_storage_bucket
+    except Exception as e:
+        st.error(f"Firebase 초기화 실패: {e}")
+        st.stop()
+
+# Firebase 초기화
+try:
+    get_firestore_client, get_storage_bucket = init_firebase()
+except Exception:
+    pass
 
 
 # ============================================================================
-# TEACHER DASHBOARD
+# 2. UTILITY FUNCTIONS
 # ============================================================================
 
-def show_teacher_dashboard():
-    """교사 대시보드"""
-    st.header("👨‍🏫 교사 대시보드")
-
-    tab1, tab2, tab3 = st.tabs(["📚 과제 배포", "📈 결과 대시보드", "🗂 제공 텍스트 보기"])
-
-    # ------------------------------------------------------------
-    # Tab 1: 과제 배포 (미리보기/편집 + 퀴즈 확인)
-    # ------------------------------------------------------------
-    with tab1:
-        st.subheader("📚 새 과제 생성 및 미리보기")
-
-        unit = st.selectbox("Unit 선택", ["Unit 1", "Unit 2", "Unit 3", "Unit 4"], key="publish_unit")
-        difficulty = st.radio("난이도 선택", ["상", "중", "하"], horizontal=True, key="publish_difficulty")
-
-        difficulty_map = {"상": "Advanced", "중": "Intermediate", "하": "Beginner"}
-        text_key = difficulty_map[difficulty]
-        base_text = YBM_TEXTBOOK.get(unit, {}).get(text_key, "Sample text")
-
-        # 미리보기(편집 가능): 난이도/유닛에 따라 키를 달리하여 캐시 문제 방지
-        edited_text = st.text_area(
-            "지문 미리보기 (편집 가능)",
-            value=base_text,
-            height=220,
-            key=f"preview_text_{unit}_{text_key}"
-        )
-
-        st.divider()
-        st.subheader("❓ 자동 생성 퀴즈 미리보기")
-        quiz_preview = generate_quiz_questions(unit)
-
-        # MCQ 스타일로 보기 구성
-        for idx, q in enumerate(quiz_preview):
-            st.markdown(f"**{idx+1}. {q['question']}**")
-            opts = q.get("options", [])
-            correct_idx = q.get("answer", 0)
-            for i, opt in enumerate(opts):
-                marker = "①" if i == 0 else "②" if i == 1 else "③" if i == 2 else "④"
-                label = f"{marker} {opt}"
-                if i == correct_idx:
-                    st.write(f"- {label} (정답)")
-                else:
-                    st.write(f"- {label}")
-            st.write("—")
-
-        # 디버그 정보
-        with st.expander("🔍 디버그 정보"):
-            st.write({
-                "selected_unit": unit,
-                "selected_difficulty": difficulty,
-                "text_key": text_key,
-                "available_keys": list(YBM_TEXTBOOK.get(unit, {}).keys()),
-                "text_length": len(base_text),
-                "text_preview": base_text[:120]
-            })
-
-        if st.button("🚀 과제 생성 및 배포", use_container_width=True, key="publish_create"):
-            access_code = generate_access_code()
-            quiz_data = quiz_preview
-            text = edited_text or base_text
-
-            if save_assignment_to_firebase(access_code, unit, difficulty, quiz_data, text):
-                st.success("✅ 과제가 생성되었습니다!")
-                st.info(f"**학생 접속 코드: {access_code}**")
-            else:
-                st.error("과제 생성 실패")
-
-    # ------------------------------------------------------------
-    # Tab 2: 결과 대시보드 (Firestore에서 과제 조회)
-    # ------------------------------------------------------------
-    with tab2:
-        st.subheader("📈 결과 대시보드")
-        st.caption("배포된 과제와 학생 결과를 확인하세요")
-
-        # Firestore에서 과제 목록 가져오기 (가능한 경우)
-        assignments = []
-        try:
-            from firebase_admin import firestore  # type: ignore
-            db = firestore.client()  # 이미 초기화된 경우 정상 동작
-            docs = db.collection("readfit_assignments").order_by("created_at", direction=firestore.Query.DESCENDING).limit(20).stream()
-            for d in docs:
-                data = d.to_dict()
-                data["id"] = d.id
-                assignments.append(data)
-        except Exception:
-            st.warning("Firestore 조회가 비활성화되어 있습니다. 배포 후 확인하세요.")
-
-        if assignments:
-            for a in assignments:
-                with st.container(border=True):
-                    col1, col2 = st.columns([3, 2])
-                    with col1:
-                        st.markdown(f"**접속 코드:** {a.get('access_code', '-')}")
-                        st.markdown(f"- Unit: {a.get('unit', '-')}")
-                        st.markdown(f"- 난이도: {a.get('difficulty', '-')}")
-                        st.markdown(f"- 생성 시각: {a.get('created_at', '-')}")
-                    with col2:
-                        st.markdown("**퀴즈 문항 수:** " + str(len(a.get('quiz', []))))
-                        # 학생 결과가 저장되는 필드를 가정하여 표시 (없으면 생략)
-                        results = a.get('results')
-                        if results:
-                            avg = int(sum(r.get('total_score', 0) for r in results) / max(len(results), 1))
-                            st.markdown(f"**평균 점수:** {avg}")
-                            st.markdown(f"**제출 수:** {len(results)}")
-                        else:
-                            st.markdown("제출된 결과 없음")
+def authenticate_teacher(email, password):
+    """
+    Firebase Authentication으로 교사 인증 (기존 함수 유지)
+    """
+    try:
+        import requests
+        from firebase_config import get_web_api_key
+        
+        api_key = get_web_api_key()
+        if not api_key:
+            return {
+                "success": False,
+                "error": "Firebase API Key를 찾을 수 없습니다."
+            }
+        
+        # Firebase Authentication REST API 사용
+        url = f"https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key={api_key}"
+        
+        payload = {
+            "email": email,
+            "password": password,
+            "returnSecureToken": True
+        }
+        
+        response = requests.post(url, json=payload)
+        data = response.json()
+        
+        if response.status_code == 200:
+            return {
+                "success": True,
+                "user_email": data.get("email", email),
+                "user_id": data.get("localId")
+            }
         else:
-            st.info("아직 표시할 과제가 없습니다.")
+            error_message = data.get("error", {}).get("message", "로그인 실패")
+            
+            error_map = {
+                "INVALID_EMAIL": "유효하지 않은 이메일 주소입니다.",
+                "INVALID_PASSWORD": "비밀번호가 틀렸습니다.",
+                "USER_DISABLED": "비활성화된 사용자입니다.",
+                "USER_NOT_FOUND": "등록되지 않은 이메일입니다."
+            }
+            
+            friendly_error = error_map.get(error_message, error_message)
+            
+            return {
+                "success": False,
+                "error": friendly_error
+            }
+    
+    except Exception as e:
+        return {
+            "success": False,
+            "error": f"인증 오류: {str(e)}"
+        }
 
-    # ------------------------------------------------------------
-    # Tab 3: 제공 텍스트 보기 (Intermediate - 제공본 확인)
-    # ------------------------------------------------------------
-    with tab3:
-        st.subheader("🗂 제공된 Unit 텍스트 (중급)")
-        st.caption("Units 1–4의 제공된 중급 텍스트를 확인하세요")
 
-        for u in ["Unit 1", "Unit 2", "Unit 3", "Unit 4"]:
-            text_mid = YBM_TEXTBOOK.get(u, {}).get("Intermediate")
-            title = YBM_TEXTBOOK.get(u, {}).get("title", u)
-            with st.expander(f"{title} — {u}"):
-                if text_mid:
-                    st.write(text_mid)
-                else:
-                    st.write("중급 텍스트가 없습니다.")
+def generate_access_code():
+    """6자리 랜덤 숫자 코드 생성"""
+    return "".join(random.choices(string.digits, k=6))
+
+
+def check_access_code_exists(code):
+    """Firestore에서 해당 접속 코드가 존재하는지 확인"""
+    try:
+        db = get_firestore_client()
+        doc = db.collection("readfit_assignments").document(code).get()
+        return doc.exists
+    except Exception as e:
+        st.error(f"데이터베이스 오류: {e}")
+        return False
+
+
+def logout():
+    """로그아웃 처리"""
+    st.session_state.clear()
+    st.rerun()
 
 
 # ============================================================================
-# STUDENT WORKSPACE - 4 STEP FLOW
+# 3. QUIZ & MISSION FUNCTIONS
 # ============================================================================
 
-def show_step1_quiz(assignment):
-    """Step 1: 퀴즈 풀기"""
-    st.header("Step 1️⃣ 퀴즈 풀기")
+def generate_simple_quiz(text_content, unit_title, difficulty):
+    """
+    지문을 기반으로 3가지 객관식 퀴즈 문제를 생성합니다.
+    (ReadFit용 간단한 퀴즈)
+    """
+    difficulty_label = "Beginner" if "Beginner" in difficulty else "Intermediate" if "Intermediate" in difficulty else "Advanced"
     
-    st.subheader("📖 지문")
-    st.text_area("지문 내용", value=assignment["text"], height=150, disabled=True)
+    quiz_questions = {
+        "Unit 1 - My Lifelogging": {
+            "Beginner": [
+                {
+                    "question": "What does Harin like to do?",
+                    "options": ["She likes to run", "She likes to swim", "She likes to dance"],
+                    "answer": 0
+                },
+                {
+                    "question": "What does Mike post on social media?",
+                    "options": ["Food pictures", "Pictures of his clothes", "Travel photos"],
+                    "answer": 1
+                },
+                {
+                    "question": "What is Elena's favorite snack?",
+                    "options": ["Cookies", "Donuts", "Ice cream"],
+                    "answer": 1
+                }
+            ],
+            "Intermediate": [
+                {
+                    "question": "What information does Harin's running app record?",
+                    "options": ["Only distance", "Speed, time, and steps", "Only calories"],
+                    "answer": 1
+                },
+                {
+                    "question": "How does Mike describe his fashion photos?",
+                    "options": ["His fashion diary", "His hobby collection", "His art project"],
+                    "answer": 0
+                },
+                {
+                    "question": "What app does Elena use to find donut shops?",
+                    "options": ["A social media app", "A map app", "A food review app"],
+                    "answer": 1
+                }
+            ],
+            "Advanced": [
+                {
+                    "question": "What does Harin's tracking method exemplify?",
+                    "options": ["Traditional fitness training", "The quantified self-movement", "Competitive sports preparation"],
+                    "answer": 1
+                },
+                {
+                    "question": "What does Mike's fashion documentation represent?",
+                    "options": ["Simple photography practice", "Artistic self-expression and identity construction", "Professional fashion design"],
+                    "answer": 1
+                },
+                {
+                    "question": "What contemporary phenomenon does Elena's activity exemplify?",
+                    "options": ["Traditional restaurant dining", "Food-focused lifelogging", "Professional food criticism"],
+                    "answer": 1
+                }
+            ]
+        },
+        "Unit 2 - Fun School Events Around the World": {
+            "Beginner": [
+                {
+                    "question": "How far do students run on Cross Country Race Day in New Zealand?",
+                    "options": ["2 kilometers", "4 kilometers", "6 kilometers"],
+                    "answer": 1
+                },
+                {
+                    "question": "When is National Language Month in the Philippines?",
+                    "options": ["July", "August", "September"],
+                    "answer": 1
+                },
+                {
+                    "question": "What instrument will the student play in the USA concert?",
+                    "options": ["Piano", "Violin", "Guitar"],
+                    "answer": 1
+                }
+            ],
+            "Intermediate": [
+                {
+                    "question": "What does the cross country course in New Zealand have?",
+                    "options": ["Flat roads only", "Small hills and lots of trees", "Swimming sections"],
+                    "answer": 1
+                },
+                {
+                    "question": "How many languages are spoken in the Philippines?",
+                    "options": ["Over 50", "Over 100", "Over 200"],
+                    "answer": 1
+                },
+                {
+                    "question": "What is the topic of Korea's digital writing contest?",
+                    "options": ["Summer vacation", "School campus in spring", "Family traditions"],
+                    "answer": 1
+                }
+            ],
+            "Advanced": [
+                {
+                    "question": "What does cross country running cultivate besides physical stamina?",
+                    "options": ["Only speed improvement", "Mental resilience and strategic pacing abilities", "Dancing skills"],
+                    "answer": 1
+                },
+                {
+                    "question": "What do the Filipino language events serve to do?",
+                    "options": ["Replace English education", "Preserve and promote linguistic heritage", "Teach foreign languages"],
+                    "answer": 1
+                },
+                {
+                    "question": "What skills does Korea's digital writing contest develop?",
+                    "options": ["Only writing skills", "Digital literacy, creative writing, and visual composition", "Only photography skills"],
+                    "answer": 1
+                }
+            ]
+        },
+        "Unit 3 - The Power of Small Acts": {
+            "Beginner": [
+                {
+                    "question": "Where did Jimin and Sora go?",
+                    "options": ["To the zoo", "To the amusement park", "To the museum"],
+                    "answer": 1
+                },
+                {
+                    "question": "What hit Jimin's back on the subway?",
+                    "options": ["A ball", "A backpack", "An umbrella"],
+                    "answer": 1
+                },
+                {
+                    "question": "What did the girls buy in the gift shop?",
+                    "options": ["T-shirts", "Hairbands with rabbit ears", "Toys"],
+                    "answer": 1
+                }
+            ],
+            "Intermediate": [
+                {
+                    "question": "What happened when they stood in line for the roller coaster?",
+                    "options": ["Someone cut in line", "The ride broke down", "They gave up waiting"],
+                    "answer": 0
+                },
+                {
+                    "question": "Who held the door for the girls at the gift shop?",
+                    "options": ["A store employee", "A nice man", "Their friend"],
+                    "answer": 1
+                },
+                {
+                    "question": "Why couldn't Jimin and Sora see the stage at the magic show?",
+                    "options": ["They arrived late", "Two boys with rabbit ears sat in front", "The lights were off"],
+                    "answer": 1
+                }
+            ],
+            "Advanced": [
+                {
+                    "question": "What public service announcement was made on the subway?",
+                    "options": ["Stand behind the yellow line", "Wear your backpack on the front", "Give up seats to elderly"],
+                    "answer": 1
+                },
+                {
+                    "question": "What did Jimin conclude about small acts?",
+                    "options": ["They don't matter much", "They possess substantial power to influence others", "They only affect yourself"],
+                    "answer": 1
+                },
+                {
+                    "question": "What does the story emphasize about considerate conduct?",
+                    "options": ["It's only important at home", "It contributes to collective well-being and social cohesion", "It's unnecessary in public"],
+                    "answer": 1
+                }
+            ]
+        },
+        "Unit 4 - My Family Tradition": {
+            "Beginner": [
+                {
+                    "question": "Where is Yubin's father from?",
+                    "options": ["Korea", "India", "China"],
+                    "answer": 1
+                },
+                {
+                    "question": "When does Yubin's family go to the baseball park?",
+                    "options": ["Every spring", "Every summer", "Every winter"],
+                    "answer": 0
+                },
+                {
+                    "question": "What game does the family play after dinner?",
+                    "options": ["Chess", "Pachisi", "Cards"],
+                    "answer": 1
+                }
+            ],
+            "Intermediate": [
+                {
+                    "question": "What are both of Yubin's parents' jobs?",
+                    "options": ["Teachers", "Computer engineers", "Doctors"],
+                    "answer": 1
+                },
+                {
+                    "question": "What is Yubin's father's favorite dish?",
+                    "options": ["Korean kimchi", "Indian chicken curry", "Chinese noodles"],
+                    "answer": 1
+                },
+                {
+                    "question": "Where does the special curry powder come from?",
+                    "options": ["A local store", "Yubin's grandmother in India", "A restaurant"],
+                    "answer": 1
+                }
+            ],
+            "Advanced": [
+                {
+                    "question": "What does opening day attendance represent for the family?",
+                    "options": ["Just entertainment", "A familial bonding experience and celebration of Korean cultural participation", "A business meeting"],
+                    "answer": 1
+                },
+                {
+                    "question": "What functions does the game pachisi serve?",
+                    "options": ["Only entertainment", "Entertainment, strategic thinking development, and cultural transmission", "Physical exercise"],
+                    "answer": 1
+                },
+                {
+                    "question": "What do family traditions provide according to the passage?",
+                    "options": ["Only fun memories", "Continuity, meaning, and a sense of belonging", "Extra work for family members"],
+                    "answer": 1
+                }
+            ]
+        }
+    }
     
-    st.divider()
-    st.subheader("❓ 문제")
+    # 기본값 제공
+    if unit_title not in quiz_questions:
+        return [
+            {
+                "question": f"What is the main topic of {unit_title}?",
+                "options": ["Option 1", "Option 2", "Option 3"],
+                "answer": 0
+            },
+            {
+                "question": "What is the key content of the passage?",
+                "options": ["Content 1", "Content 2", "Content 3"],
+                "answer": 0
+            },
+            {
+                "question": "What is important regarding this topic?",
+                "options": ["Perspective 1", "Perspective 2", "Perspective 3"],
+                "answer": 0
+            }
+        ]
     
-    quiz_data = assignment["quiz"]
-    answers = []
-    
-    for idx, q in enumerate(quiz_data):
-        st.write(f"**{idx + 1}. {q['question']}**")
-        answer = st.radio("정답을 선택하세요", q["options"], key=f"quiz_{idx}")
-        answers.append(q["options"].index(answer))
-    
-    if st.button("✅ 정답 제출", use_container_width=True):
-        score = sum(1 for i, q in enumerate(quiz_data) if answers[i] == q["answer"]) / len(quiz_data) * 100
-        st.session_state.quiz_score = int(score)
-        st.session_state.step = 2
-        st.rerun()
+    return quiz_questions.get(unit_title, {}).get(difficulty_label, [])
 
 
-def show_step2_mission_selection(quiz_score):
-    """Step 2: 미션 선택"""
-    st.header("Step 2️⃣ 미션 선택")
-    
-    # 점수 표시
-    st.info(f"🎯 당신의 퀴즈 점수: **{quiz_score}점**")
-    
+def get_mission_info():
+    """미션 정보 반환"""
     missions = [
         {
             "id": "image_detective",
@@ -519,80 +619,206 @@ def show_step2_mission_selection(quiz_score):
             "emoji": "✍️"
         }
     ]
+    return missions
+
+
+# ============================================================================
+# 4. STEP FUNCTIONS FOR 4-STEP FLOW
+# ============================================================================
+
+def show_step1_quiz(assignment_data):
+    """Step 1: 퀴즈 풀기"""
+    st.header("Step 1️⃣ 퀴즈 풀기")
     
-    # 난이도 추천 로직
+    st.subheader("📖 지문")
+    st.text_area(
+        "지문 내용",
+        value=assignment_data.get("text", ""),
+        height=150,
+        disabled=True,
+        key="quiz_text_display"
+    )
+    
+    st.divider()
+    st.subheader("❓ 객관식 문제")
+    
+    quiz_questions = assignment_data.get("quiz", [])
+    
+    if not quiz_questions:
+        st.error("퀴즈 데이터를 불러올 수 없습니다.")
+        return None
+    
+    st.session_state.quiz_answers = []
+    
+    for idx, q in enumerate(quiz_questions):
+        st.write(f"**{idx+1}. {q['question']}**")
+        answer = st.radio(
+            "정답 선택",
+            options=q['options'],
+            key=f"quiz_{idx}"
+        )
+        st.session_state.quiz_answers.append({
+            "question": q['question'],
+            "selected": answer,
+            "correct": q['options'][q['answer']],
+            "is_correct": answer == q['options'][q['answer']]
+        })
+        st.divider()
+    
+    if st.button("✅ 정답 제출하기", use_container_width=True, key="submit_quiz"):
+        correct_count = sum(1 for a in st.session_state.quiz_answers if a['is_correct'])
+        total_count = len(st.session_state.quiz_answers)
+        score = int((correct_count / total_count) * 100) if total_count > 0 else 0
+        
+        st.session_state.quiz_score = score
+        st.session_state.quiz_correct = correct_count
+        st.session_state.quiz_total = total_count
+        st.session_state.step = 2
+        st.success(f"✅ 제출 완료! 점수: {score}점 ({correct_count}/{total_count})")
+        st.rerun()
+
+
+def show_step2_mission_selection(quiz_score):
+    """Step 2: 미션 선택"""
+    st.header("Step 2️⃣ 활동 선택")
+    
+    st.info(f"📊 **당신의 퀴즈 점수: {quiz_score}점**")
+    
     if quiz_score >= 80:
-        recommended = 2  # 작가
+        recommended_mission = "베스트셀러 작가 (상)"
+        recommended_id = "writer"
     elif quiz_score >= 60:
-        recommended = 1  # 스무고개
+        recommended_mission = "미스터리 스무고개 (중)"
+        recommended_id = "mystery_20_questions"
     else:
-        recommended = 0  # 이미지 탐정
+        recommended_mission = "이미지 탐정 (하)"
+        recommended_id = "image_detective"
     
+    st.write(f"🤖 **AI 추천**: {recommended_mission}")
+    st.divider()
+    
+    missions = get_mission_info()
     cols = st.columns(3)
     
     for idx, mission in enumerate(missions):
         with cols[idx]:
-            st.markdown(f"""
-            <div class="mission-card">
-                <div style="font-size: 40px; margin-bottom: 10px;">{mission['emoji']}</div>
-                <div style="font-size: 18px; font-weight: bold; margin-bottom: 5px;">{mission['title']}</div>
-                <div style="color: #666; font-size: 14px; margin-bottom: 10px;">{mission['description']}</div>
-                <div style="color: #999; font-size: 12px;">난이도: {mission['difficulty']}</div>
-            """, unsafe_allow_html=True)
+            is_recommended = mission['id'] == recommended_id
             
-            if idx == recommended:
-                st.markdown('<div class="mission-badge">👍 AI 추천</div>', unsafe_allow_html=True)
+            if is_recommended:
+                st.markdown(
+                    f"""<div style="border: 3px solid #FFD700; border-radius: 12px; padding: 16px; text-align: center; background: rgba(255, 215, 0, 0.1);">
+                        <div style="font-size: 40px; margin-bottom: 8px;">{mission['emoji']}</div>
+                        <div style="font-weight: bold; font-size: 16px; margin-bottom: 8px;">{mission['title']}</div>
+                        <div style="font-size: 12px; color: #666; margin-bottom: 8px;">난이도: {mission['difficulty']}</div>
+                        <div style="font-size: 13px; margin-bottom: 12px;">{mission['description']}</div>
+                        <div style="background: #FFD700; color: black; padding: 4px 8px; border-radius: 6px; font-size: 11px; font-weight: bold; display: inline-block; margin-bottom: 12px;">👍 AI 추천</div>
+                    </div>""",
+                    unsafe_allow_html=True
+                )
+            else:
+                st.markdown(
+                    f"""<div style="border: 2px solid #e2e8f0; border-radius: 12px; padding: 16px; text-align: center;">
+                        <div style="font-size: 40px; margin-bottom: 8px;">{mission['emoji']}</div>
+                        <div style="font-weight: bold; font-size: 16px; margin-bottom: 8px;">{mission['title']}</div>
+                        <div style="font-size: 12px; color: #666; margin-bottom: 8px;">난이도: {mission['difficulty']}</div>
+                        <div style="font-size: 13px;">{mission['description']}</div>
+                    </div>""",
+                    unsafe_allow_html=True
+                )
             
-            st.markdown("</div>", unsafe_allow_html=True)
-            
-            if st.button("이 미션 선택하기", key=f"mission_{idx}", use_container_width=True):
-                st.session_state.selected_mission = mission["id"]
-                st.session_state.mission_title = mission["title"]
+            if st.button(f"선택하기", key=f"mission_{mission['id']}", use_container_width=True):
+                st.session_state.selected_mission = mission['id']
+                st.session_state.selected_mission_title = mission['title']
                 st.session_state.step = 3
                 st.rerun()
 
 
-def show_step3_image_detective(assignment):
-    """Step 3: 이미지 탐정 활동"""
-    st.header("Step 3️⃣ 활동 수행")
+# ============================================================================
+# [복원] DALL-E 이미지 생성 (OpenAI) + 안전한 폴백
+# ============================================================================
+def generate_image_with_dalle(word):
+    """DALL-E를 우선 호출하고, 실패 시 안전한 폴백 URL을 반환합니다."""
+    api_key = st.secrets.get("OPENAI_API_KEY") if hasattr(st, "secrets") else None
+
+    # 1) OpenAI DALL-E
+    if api_key:
+        try:
+            client = OpenAI(api_key=api_key)
+            result = client.images.generate(
+                model="dall-e-3",
+                prompt=f"Kid-friendly, colorful illustration of '{word}' on simple background",
+                size="1024x1024",
+                response_format="b64_json"
+            )
+            b64_data = result.data[0].b64_json
+            if b64_data:
+                return base64.b64decode(b64_data)
+        except Exception as e:
+            st.warning(f"OpenAI 이미지 생성 실패, 기본 이미지로 대체합니다: {e}")
+
+    # 2) 폴백: Picsum 랜덤 이미지 (단어 시드)
+    try:
+        return f"https://picsum.photos/seed/{word}/512/512"
+    except Exception:
+        # 3) 최종 폴백: Unsplash 기본
+        return f"https://source.unsplash.com/512x512/?{word},{random.randint(1,100)}"
+
+
+# ============================================================================
+# [수정] Step 3: 이미지 탐정 전용 함수 (독립 함수로 분리)
+# ============================================================================
+def show_step3_image_detective():
+    """Step 3: 이미지 탐정 활동 - AI로 동적 오답 생성"""
     st.subheader("🎨 이미지 탐정")
     st.write("**AI가 그린 그림을 보고 단어를 맞춰보세요!**")
     
     # 세션 초기화
-    if "detective_word" not in st.session_state:
-        st.session_state.detective_word = None
+    if "detective_target_word" not in st.session_state:
+        st.session_state.detective_target_word = None
         st.session_state.detective_image = None
         st.session_state.detective_options = []
+        st.session_state.detective_option_types = {}
     
-    # 단어 및 이미지 생성
-    if st.session_state.detective_word is None:
-        # 지문에서 간단한 영어 단어 추출
-        sample_words = ["astronaut", "dog", "cat", "tree", "house", "car", "sun", "moon", "flower", "bird", "book", "apple", "hat", "shoes", "bicycle"]
-        selected_word = random.choice(sample_words)
-        st.session_state.detective_word = selected_word
+    # 단어 및 이미지 생성 로직
+    if st.session_state.detective_target_word is None:
+        # 간단한 단어 풀에서 랜덤 선택
+        word_pool = ["dog", "cat", "tree", "house", "car", "sun", "moon", 
+                     "flower", "bird", "book", "apple", "hat", "shoes", "bicycle"]
+        target_word = random.choice(word_pool)
+        st.session_state.detective_target_word = target_word
         
-        # 보기 생성
-        wrong_words = [w for w in sample_words if w != selected_word]
-        random.shuffle(wrong_words)
-        options = [selected_word] + wrong_words[:3]
-        random.shuffle(options)
-        st.session_state.detective_options = options
+        # AI를 통해 교육적 오답 생성
+        with st.spinner("🤖 AI가 문제를 만들고 있어요..."):
+            distractors = get_educational_distractors(target_word)
         
-        # 이미지 생성 (안정적인 URL)
-        with st.spinner("🤖 AI가 그림을 그리고 있어요..."):
-            image_url = generate_image_with_dalle(selected_word)
-            st.session_state.detective_image = image_url
+        # 선택지 구성: 정답 + 3가지 유형 오답
+        options_with_types = [
+            (target_word, "correct"),
+            (distractors.get("semantic", "dog"), "semantic"),
+            (distractors.get("spelling", "log"), "spelling"),
+            (distractors.get("random", "desk"), "random")
+        ]
+        
+        random.shuffle(options_with_types)
+        
+        st.session_state.detective_options = [opt[0] for opt in options_with_types]
+        st.session_state.detective_option_types = {opt[0]: opt[1] for opt in options_with_types}
+        
+        # 이미지 생성
+        with st.spinner("🤖 AI가 그림을 그리고 있어요!"):
+            image_result = generate_image_with_dalle(target_word)
+            st.session_state.detective_image = image_result
     
-    # 이미지 표시 (바이트 또는 URL 모두 지원)
+    # 이미지 표시
     if st.session_state.detective_image:
         try:
             st.image(st.session_state.detective_image, caption="이 그림이 무엇일까요?", use_container_width=True)
         except Exception as e:
             st.warning(f"⚠️ 이미지를 로드할 수 없습니다. ({str(e)})")
-            st.info(f"단어: {st.session_state.detective_word}")
     else:
         st.warning("⚠️ 이미지를 준비하지 못했습니다.")
     
+    st.divider()
     st.write("**아래 버튼 중 정답을 선택하세요:**")
     
     # 4개 선택지 버튼
@@ -600,246 +826,522 @@ def show_step3_image_detective(assignment):
     for idx, option in enumerate(st.session_state.detective_options):
         with cols[idx]:
             if st.button(f"**{option}**", key=f"detect_{idx}", use_container_width=True):
-                if option == st.session_state.detective_word:
+                target = st.session_state.detective_target_word
+                answer = option
+                answer_type = st.session_state.detective_option_types.get(answer, "unknown")
+                
+                # 세션에 저장
+                st.session_state.detective_target = target
+                st.session_state.detective_answer = answer
+                st.session_state.detective_answer_type = answer_type
+                
+                if answer == target:
                     st.session_state.activity_score = 100
                     st.success("🎉 정답입니다!")
                 else:
                     st.session_state.activity_score = 30
-                    st.error(f"❌ 틀렸습니다. 정답은 '{st.session_state.detective_word}'입니다.")
+                    st.error(f"❌ 틀렸습니다. 정답은 '{target}'입니다.")
                 
-                # 초기화 및 다음 단계
-                st.session_state.detective_word = None
+                # 세션 초기화
+                st.session_state.detective_target_word = None
                 st.session_state.detective_image = None
                 st.session_state.detective_options = []
+                st.session_state.detective_option_types = {}
+                
                 st.session_state.step = 4
                 st.rerun()
 
 
-def show_step3_mystery_questions():
-    """Step 3: 미스터리 스무고개"""
+# ============================================================================
+# [수정] 통합 활동 관리 함수
+# ============================================================================
+def show_step3_activity(selected_mission):
+    """Step 3: 활동 수행 메인 함수"""
     st.header("Step 3️⃣ 활동 수행")
-    st.subheader("🕵️ 미스터리 스무고개")
-    st.write("**AI의 힌트를 듣고 단어를 추리하세요!**")
     
-    with st.expander("💬 AI 힌트 보기"):
-        st.write("• 이것은 동물입니다.")
-        st.write("• 이것은 4개의 다리가 있습니다.")
-        st.write("• 이것은 개입니다.")
-    
-    answer = st.text_input("정답을 입력하세요:", key="mystery_answer")
-    
-    if st.button("✅ 정답 제출", use_container_width=True):
-        if answer.lower() == "dog":
-            st.session_state.activity_score = 90
-            st.success("🎉 정답입니다!")
-        else:
-            st.session_state.activity_score = 40
-            st.error("❌ 틀렸습니다. 정답은 'dog'입니다.")
+    if selected_mission == "image_detective":
+        show_step3_image_detective()
         
-        st.session_state.step = 4
-        st.rerun()
-
-
-def show_step3_story_writer():
-    """Step 3: 베스트셀러 작가"""
-    st.header("Step 3️⃣ 활동 수행")
-    st.subheader("✍️ 베스트셀러 작가")
-    st.write("**뒷이야기를 상상해서 써보세요!**")
-    st.caption("(200자 이상 작성 권장)")
-    
-    story = st.text_area("이야기 작성", height=200, placeholder="뒷이야기를 입력하세요...", key="writer_story")
-    
-    if st.button("✅ 작품 제출", use_container_width=True):
-        if len(story.strip()) > 0:
-            st.session_state.activity_score = 85
-            st.success("🎉 작품이 제출되었습니다!")
+    elif selected_mission == "mystery_20_questions":
+        st.subheader("🕵️ 미스터리 스무고개")
+        st.write("💡 **빈칸에 들어갈 단어를 맞춰보세요!**")
+        
+        # 세션 초기화
+        if "mystery_target_word" not in st.session_state:
+            # 지문에서 단어 추출 (간단히 공백 기준 분리)
+            text = st.session_state.get("reading_text", "The dog is a friendly animal.")
+            words = [w.strip('.,!?;:"()[]') for w in text.split() if len(w.strip('.,!?;:"()[]')) > 3]
+            target = random.choice(words) if words else "dog"
+            
+            st.session_state.mystery_target_word = target
+            st.session_state.mystery_text_with_blank = text.replace(target, "[ ❓ ]", 1)
+            st.session_state.mystery_hint_level = 0  # 0: 숨김, 1: 의미, 2: 첫글자, 3: 정답
+        
+        # 빈칸이 있는 지문 표시
+        st.info(st.session_state.mystery_text_with_blank)
+        
+        st.divider()
+        
+        # 힌트 버튼
+        if st.session_state.mystery_hint_level < 3:
+            if st.button("💡 힌트 보기", key="mystery_hint_btn"):
+                st.session_state.mystery_hint_level += 1
+                st.rerun()
+        
+        # 힌트 표시
+        if st.session_state.mystery_hint_level >= 1:
+            st.success(f"**힌트 1:** 이 단어의 의미를 생각해보세요!")
+        if st.session_state.mystery_hint_level >= 2:
+            first_letter = st.session_state.mystery_target_word[0].upper()
+            st.success(f"**힌트 2:** 첫 글자는 '{first_letter}'입니다!")
+        if st.session_state.mystery_hint_level >= 3:
+            st.success(f"**정답:** {st.session_state.mystery_target_word}")
+        
+        st.divider()
+        
+        # 답 입력
+        answer = st.text_input("정답을 입력하세요:", key="mystery_answer_input")
+        if st.button("정답 제출하기", use_container_width=True, key="submit_mystery"):
+            target = st.session_state.mystery_target_word
+            if answer.strip().lower() == target.lower():
+                st.session_state.activity_score = 100
+                st.success(f"🎉 정답입니다! '{target}'")
+            else:
+                st.session_state.activity_score = 50
+                st.error(f"❌ 틀렸습니다. 정답은 '{target}'입니다.")
+            
+            st.session_state.activity_answer = answer
+            st.session_state.mystery_target_word = None  # 초기화
             st.session_state.step = 4
             st.rerun()
-        else:
-            st.error("최소 1자 이상 작성해주세요.")
+            
+    elif selected_mission == "writer":
+        st.subheader("✍️ 베스트셀러 작가")
+        
+        # 세션 초기화
+        if "writer_keywords" not in st.session_state:
+            # 지문에서 키워드 3개 추출 (간단히 긴 단어 3개)
+            text = st.session_state.get("reading_text", "The dog runs in the park.")
+            words = [w.strip('.,!?;:"()[]') for w in text.split() if len(w.strip('.,!?;:"()[]')) > 3]
+            keywords = random.sample(words, min(3, len(words))) if words else ["dog", "runs", "park"]
+            st.session_state.writer_keywords = keywords
+        
+        st.write("✍️ **다음 키워드를 사용해서 이야기를 만들어보세요!**")
+        st.info(f"**키워드:** {', '.join(st.session_state.writer_keywords)}")
+        
+        st.caption("(50자 이상 작성 권장)")
+        story = st.text_area(
+            "이야기 작성",
+            height=200,
+            placeholder="키워드를 사용해서 이야기를 작성하세요...",
+            key="writer_story_input"
+        )
+        
+        if st.button("작품 제출하기", use_container_width=True, key="submit_writer"):
+            if len(story.strip()) < 10:
+                st.error("최소 10자 이상 작성해주세요.")
+            else:
+                # AI 피드백 생성
+                with st.spinner("🤖 AI 선생님이 피드백을 작성하고 있어요..."):
+                    feedback = get_writing_feedback(story, st.session_state.writer_keywords)
+                
+                st.session_state.writer_feedback = feedback
+                st.session_state.activity_answer = story
+                st.session_state.activity_score = 85
+                st.session_state.writer_keywords = None  # 초기화
+                st.session_state.step = 4
+                st.rerun()
 
 
-def show_step4_report(quiz_score, activity_score, mission_title):
+def show_step4_report(quiz_score, activity_score, selected_mission_title):
     """Step 4: 최종 리포트"""
     st.header("Step 4️⃣ 최종 리포트")
     
-    total_score = int(quiz_score * 0.4 + activity_score * 0.6)
+    total_score = int((quiz_score * 0.4 + activity_score * 0.6))
     
-    # 점수 표시
     col1, col2, col3 = st.columns(3)
+    
     with col1:
-        st.metric("📝 퀴즈 점수", f"{quiz_score}점")
+        st.metric("📝 퀴즈 점수", f"{st.session_state.quiz_score}점")
+    
     with col2:
         st.metric("🎯 활동 점수", f"{activity_score}점")
+    
     with col3:
         st.metric("⭐ 최종 점수", f"{total_score}점")
     
     st.divider()
     
-    # 칭호 생성
-    titles = {
-        100: "🏆 완벽한 마스터",
-        90: "🥇 매의 눈을 가진 탐정",
-        80: "🥈 뛰어난 학습자",
-        70: "🥉 열심히 하는 학생",
-        60: "📚 성장하는 독서왕",
-        0: "🌟 재도전 중인 별"
-    }
-    
-    title = next((v for k, v in sorted(titles.items(), reverse=True) if total_score >= k), "🌟 재도전 중인 별")
-    
-    st.markdown(f"""
-    <div style="text-align: center; padding: 30px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
-                border-radius: 16px; color: white; margin: 20px 0;">
-        <div style="font-size: 60px; margin-bottom: 10px;">🎉</div>
-        <div style="font-size: 28px; font-weight: bold; margin-bottom: 10px;">학습 완료!</div>
-        <div style="font-size: 20px; margin-bottom: 10px;">오늘의 칭호</div>
-        <div style="font-size: 24px; font-weight: bold;">{title}</div>
-    </div>
-    """, unsafe_allow_html=True)
+    st.markdown(
+        f"""<div style="text-align: center; padding: 24px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+                    border-radius: 12px; color: white;">
+            <div style="font-size: 48px; margin-bottom: 16px;">🎉</div>
+            <div style="font-size: 28px; font-weight: bold; margin-bottom: 8px;">참 잘했어요!</div>
+            <div style="font-size: 16px; margin-bottom: 16px;">오늘 학습을 완료했습니다!</div>
+            <div style="font-size: 14px;">선택한 활동: {selected_mission_title}</div>
+        </div>""",
+        unsafe_allow_html=True
+    )
     
     st.divider()
     
-    # AI 피드백
     st.subheader("📊 오늘의 학습 요약")
-    feedback = f"""
-    아주 잘했어요! 당신은 '{mission_title}' 미션을 완료했습니다. 
     
-    총 점수 {total_score}점을 획득했습니다. 계속 열심히 공부하면 더 좋은 결과를 얻을 수 있을 거예요!
+    # 이미지 탐정 미션 오답 유형 분석
+    if selected_mission_title == "🎨 이미지 탐정" and hasattr(st.session_state, "detective_answer_type"):
+        answer_type = st.session_state.detective_answer_type
+        
+        st.markdown("**📈 상세 분석:**")
+        
+        if answer_type == "correct":
+            st.success("✅ 정답을 정확히 맞췄습니다! 단어와 이미지를 잘 연결했어요.")
+        elif answer_type == "semantic":
+            st.info("🔍 **의미적 오답**: 비슷한 의미의 단어를 선택했어요.")
+            st.caption("💡 **학습 팁**: 단어의 정확한 의미 차이를 공부해보세요. 비슷해 보이지만 다른 뜻을 가진 단어들이 많아요!")
+        elif answer_type == "spelling":
+            wrong_word = st.session_state.get('detective_wrong_answer', '')
+            correct_word = st.session_state.get('detective_word', '')
+            st.info("📝 **철자적 오답**: 철자가 비슷한 단어를 선택했어요.")
+            st.caption(f"💡 **학습 팁**: 단어를 소리 내어 읽고 철자를 주의 깊게 확인해보세요. '{wrong_word}' vs '{correct_word}'의 철자 차이를 눈여겨보세요!")
+        elif answer_type == "random":
+            st.info("🤔 **랜덤 오답**: 전혀 관계없는 단어를 선택했어요.")
+            st.caption("💡 **학습 팁**: 이미지를 더 자세히 관찰해보세요. 그림 속 힌트들을 놓치지 마세요!")
+        
+        st.divider()
     
-    - 퀴즈 점수: {quiz_score}점
-    - 활동 점수: {activity_score}점
-    """
-    st.info(feedback)
+    summary_col1, summary_col2 = st.columns(2)
+    
+    with summary_col1:
+        st.write("✅ **완료한 활동:**")
+        st.write(f"• 퀴즈: {st.session_state.quiz_correct}/{st.session_state.quiz_total} 정답")
+        st.write(f"• {selected_mission_title} 완료")
+    
+    with summary_col2:
+        st.write("📈 **학습 결과:**")
+        st.write(f"• 총 점수: **{total_score}점**")
+        if total_score >= 80:
+            st.write("• 레벨: 🌟 우수")
+        elif total_score >= 60:
+            st.write("• 레벨: ⭐ 좋음")
+        else:
+            st.write("• 레벨: 🔄 다시 도전")
+    
+    st.divider()
     
     col1, col2 = st.columns(2)
+    
     with col1:
-        if st.button("🏠 메인으로 돌아가기", use_container_width=True):
-            st.session_state.clear()
+        if st.button("🏠 메인으로 돌아가기", use_container_width=True, key="back_to_main"):
+            st.session_state.step = 0
             st.rerun()
+    
     with col2:
-        if st.button("🔄 다시 풀기", use_container_width=True):
+        if st.button("🔄 다시 풀기", use_container_width=True, key="retry"):
             st.session_state.step = 1
             st.rerun()
 
 
 # ============================================================================
-# STUDENT WORKSPACE
+# 5. LOGIN PAGE
 # ============================================================================
 
-def show_student_workspace(assignment):
-    """학생 워크스페이스 - 4 Step Flow"""
+def show_login_page():
+    """로그인 페이지 표시"""
     apply_global_styles()
     
-    st.markdown(f"""
-    <div style="text-align: center; margin-bottom: 20px;">
-        <div style="font-size: 24px; font-weight: bold;">📚 ReadFit</div>
-        <div style="color: #666; font-size: 14px;">Unit: {assignment['unit']} | 난이도: {assignment['difficulty']}</div>
-    </div>
-    """, unsafe_allow_html=True)
+    st.markdown("<div class='login-hero'><h1>📚 ReadFit</h1></div>", unsafe_allow_html=True)
+    st.markdown("<div class='login-sub'>영어 학습 플랫폼 - 퀴즈 & 활동으로 영어 실력 UP!</div>", unsafe_allow_html=True)
     
-    if "step" not in st.session_state:
-        st.session_state.step = 1
-    if "quiz_score" not in st.session_state:
-        st.session_state.quiz_score = 0
-    if "activity_score" not in st.session_state:
-        st.session_state.activity_score = 0
+    col1, col2, col3 = st.columns([0.8, 1.4, 0.8])
     
-    # Step 진행 표시
-    st.progress(st.session_state.step / 4, f"Step {st.session_state.step}/4")
-    
-    if st.session_state.step == 1:
-        show_step1_quiz(assignment)
-    elif st.session_state.step == 2:
-        show_step2_mission_selection(st.session_state.quiz_score)
-    elif st.session_state.step == 3:
-        if st.session_state.selected_mission == "image_detective":
-            show_step3_image_detective(assignment)
-        elif st.session_state.selected_mission == "mystery_20_questions":
-            show_step3_mystery_questions()
-        elif st.session_state.selected_mission == "writer":
-            show_step3_story_writer()
-    elif st.session_state.step == 4:
-        show_step4_report(st.session_state.quiz_score, st.session_state.activity_score, st.session_state.mission_title)
+    with col2:
+        tab1, tab2 = st.tabs(["🎓 교사 로그인", "👨‍🎓 학생 입장"])
+        
+        # ===== 교사 로그인 탭 =====
+        with tab1:
+            st.subheader("교사 로그인")
+            teacher_email = st.text_input("이메일", key="teacher_email", placeholder="teacher@example.com")
+            teacher_pw = st.text_input("비밀번호", type="password", key="teacher_pw")
+            
+            if st.button("로그인", key="teacher_login_btn", use_container_width=True):
+                if not teacher_email.strip():
+                    st.error("이메일을 입력해주세요.")
+                elif not teacher_pw.strip():
+                    st.error("비밀번호를 입력해주세요.")
+                else:
+                    try:
+                        auth_result = authenticate_teacher(teacher_email, teacher_pw)
+                        
+                        if auth_result["success"]:
+                            st.session_state.is_logged_in = True
+                            st.session_state.user_role = "teacher"
+                            st.session_state.user_name = auth_result["user_email"]
+                            st.success("교사 로그인 성공!")
+                            st.rerun()
+                        else:
+                            st.error(auth_result["error"])
+                    except Exception as e:
+                        st.error(f"로그인 오류: {str(e)}")
+        
+        # ===== 학생 입장 탭 =====
+        with tab2:
+            st.subheader("학생 입장")
+            student_name = st.text_input("이름", key="student_name")
+            access_code = st.text_input("학습 코드 (6자리 숫자)", key="access_code_input")
+            
+            if st.button("입장하기", key="student_login_btn", use_container_width=True):
+                if not student_name.strip():
+                    st.error("이름을 입력해주세요.")
+                elif not access_code.strip():
+                    st.error("학습 코드를 입력해주세요.")
+                elif not access_code.isdigit() or len(access_code) != 6:
+                    st.error("학습 코드는 6자리 숫자여야 합니다.")
+                else:
+                    if check_access_code_exists(access_code):
+                        st.session_state.is_logged_in = True
+                        st.session_state.user_role = "student"
+                        st.session_state.user_name = student_name
+                        st.session_state.current_access_code = access_code
+                        st.success(f"{student_name}님 입장을 환영합니다!")
+                        st.rerun()
+                    else:
+                        st.error("유효하지 않은 학습 코드입니다. 코드를 다시 확인해주세요.")
 
 
 # ============================================================================
-# MAIN APP
+# 6. TEACHER DASHBOARD
+# ============================================================================
+
+def show_teacher_dashboard():
+    """교사 대시보드 - ReadFit 버전"""
+    apply_global_styles()
+    st.title("🎓 교사 대시보드")
+    
+    # 사이드바 메뉴
+    with st.sidebar:
+        st.write(f"### 👤 {st.session_state.user_name}")
+        st.write("**역할**: 교사")
+        st.divider()
+        
+        if st.button("로그아웃", use_container_width=True):
+            logout()
+    
+    st.subheader("📚 ReadFit - 과제 생성")
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        selected_unit = st.selectbox(
+            "📖 단원 선택",
+            ["Unit 1", "Unit 2", "Unit 3", "Unit 4"],
+            key="teacher_unit_select"
+        )
+    
+    with col2:
+        difficulty = st.selectbox(
+            "📊 난이도 선택",
+            ["Beginner (초급)", "Intermediate (중급)", "Advanced (고급)"],
+            key="teacher_difficulty_select"
+        )
+    
+    st.divider()
+    
+    # 선택된 지문과 퀴즈 미리보기
+    unit_data = YBM_TEXTBOOK[selected_unit]
+    unit_title = unit_data["title"]
+    difficulty_key = difficulty.split()[0]
+    text_content = unit_data[difficulty_key]
+    
+    st.subheader(f"🎯 {unit_title} ({difficulty})")
+    
+    # 디버그 정보
+    with st.expander("🔍 디버그 정보", expanded=True):
+        st.write(f"**선택된 단원**: `{selected_unit}`")
+        st.write(f"**선택된 난이도**: `{difficulty}`")
+        st.write(f"**추출된 난이도 키**: `{difficulty_key}`")
+        st.write(f"**사용 가능한 난이도 키들**: `{list(unit_data.keys())}`")
+        st.write(f"**지문 길이**: {len(text_content)} 글자")
+        st.write(f"**지문 시작 100자**: {text_content[:100]}...")
+    
+    # 지문 미리보기 및 수정
+    st.markdown("### 📖 지문 내용")
+    st.caption("💡 지문 내용을 직접 수정할 수 있습니다.")
+    edited_text = st.text_area(
+        "학생들에게 제공될 지문",
+        value=text_content,
+        height=200,
+        key=f"preview_text_{difficulty_key}"
+    )
+    # 수정된 지문 사용
+    text_content = edited_text
+    
+    st.divider()
+    
+    # 퀴즈 미리보기
+    st.markdown("### ❓ 자동 생성 퀴즈 (미리보기)")
+    quiz_questions = generate_simple_quiz(text_content, unit_title, difficulty)
+    
+    st.markdown("---")
+    for idx, q in enumerate(quiz_questions):
+        st.markdown(f"**{idx+1}.** {q['question']}")
+        st.write("")
+        for opt_idx, option in enumerate(q['options']):
+            marker = "①" if opt_idx == 0 else "②" if opt_idx == 1 else "③"
+            if opt_idx == q['answer']:
+                st.markdown(f"{marker} {option} &nbsp;&nbsp; ✅ **(정답)**")
+            else:
+                st.write(f"{marker} {option}")
+        st.write("")
+        if idx < len(quiz_questions) - 1:
+            st.markdown("---")
+    
+    st.divider()
+    
+    # 과제 생성 버튼
+    st.markdown("### 🚀 과제 배포")
+    st.caption("위의 지문과 퀴즈를 확인하셨다면 아래 버튼을 눌러 과제를 생성하세요.")
+    
+    if st.button("✅ 과제 생성 및 배포", use_container_width=True, type="primary", key="create_assignment_btn"):
+        access_code = generate_access_code()
+        
+        try:
+            db = get_firestore_client()
+            assignment_data = {
+                "unit": selected_unit,
+                "difficulty": difficulty,
+                "access_code": access_code,
+                "text": text_content,
+                "quiz": quiz_questions,
+                "teacher_name": st.session_state.user_name,
+                "created_at": datetime.now()
+            }
+            db.collection("readfit_assignments").document(access_code).set(assignment_data)
+            
+            st.success(f"✅ 과제가 생성되었습니다!\n\n**학생 접근 코드: `{access_code}`**")
+            st.info(
+                f"📚 **단원**: {unit_title}\n"
+                f"📊 **난이도**: {difficulty}\n"
+                f"❓ **문제 수**: 3개 (객관식)"
+            )
+            st.balloons()
+        except Exception as e:
+            st.error(f"과제 생성 실패: {str(e)}")
+
+
+# ============================================================================
+# 7. STUDENT WORKSPACE
+# ============================================================================
+
+def show_student_workspace():
+    """학생 워크스페이스 - ReadFit 4-step 플로우"""
+    apply_global_styles()
+    st.title("👨‍🎓 학생 학습 공간")
+    
+    # 사이드바
+    with st.sidebar:
+        st.write(f"### 👤 {st.session_state.user_name}")
+        st.write("**역할**: 학생")
+        st.write(f"**학습 코드**: {st.session_state.current_access_code}")
+        
+        # 진행 상황 표시
+        if hasattr(st.session_state, 'step'):
+            step_labels = {
+                0: "📚 대기 중",
+                1: "❓ Step 1 - 퀴즈",
+                2: "🎯 Step 2 - 활동 선택",
+                3: "🎪 Step 3 - 활동 수행",
+                4: "🏆 Step 4 - 최종 리포트"
+            }
+            st.write(f"**진행도**: {step_labels.get(st.session_state.step, '시작')}")
+        
+        st.divider()
+        
+        if st.button("로그아웃", use_container_width=True):
+            logout()
+    
+    # Step 초기화
+    if 'step' not in st.session_state:
+        st.session_state.step = 1
+    
+    # ReadFit 컬렉션에서 과제 데이터 로드
+    try:
+        db = get_firestore_client()
+        doc = db.collection("readfit_assignments").document(st.session_state.current_access_code).get()
+        if doc.exists:
+            assignment = doc.to_dict()
+        else:
+            st.error("과제를 불러올 수 없습니다.")
+            return
+    except Exception as e:
+        st.error(f"데이터 로드 오류: {str(e)}")
+        return
+    
+    if not assignment:
+        st.error("과제 정보를 불러올 수 없습니다.")
+        return
+    
+    # 📚 지문 정보 표시
+    st.markdown("<div class='card'>", unsafe_allow_html=True)
+    col1, col2 = st.columns(2)
+    with col1:
+        st.subheader(assignment.get("unit", "제목 없음"))
+    with col2:
+        st.metric("난이도", assignment.get("difficulty", "N/A"))
+    st.markdown("</div>", unsafe_allow_html=True)
+    
+    # 4-step 플로우 실행
+    if st.session_state.step == 1:
+        show_step1_quiz(assignment)
+    
+    elif st.session_state.step == 2:
+        show_step2_mission_selection(st.session_state.quiz_score)
+    
+    elif st.session_state.step == 3:
+        show_step3_activity(st.session_state.selected_mission)
+    
+    elif st.session_state.step == 4:
+        show_step4_report(
+            st.session_state.quiz_score,
+            st.session_state.activity_score,
+            st.session_state.selected_mission_title
+        )
+
+
+# ============================================================================
+# 8. PAGE CONFIG & INITIALIZATION
+# ============================================================================
+
+st.set_page_config(
+    page_title="ReadFit - 영어 학습 플랫폼",
+    page_icon="📚",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
+# Session State 초기화
+if "is_logged_in" not in st.session_state:
+    st.session_state.is_logged_in = False
+if "user_role" not in st.session_state:
+    st.session_state.user_role = None
+if "user_name" not in st.session_state:
+    st.session_state.user_name = None
+if "current_access_code" not in st.session_state:
+    st.session_state.current_access_code = None
+
+
+# ============================================================================
+# 9. MAIN APP LOGIC
 # ============================================================================
 
 def main():
-    """메인 앱"""
+    """메인 애플리케이션"""
     apply_global_styles()
-    
-    # 초기 세션 상태
-    if "user_role" not in st.session_state:
-        st.session_state.user_role = None
-    
-    # 로그인 전
-    if st.session_state.user_role is None:
-        st.markdown("<div class='login-hero'><h1>📚 ReadFit</h1></div>", unsafe_allow_html=True)
-        st.markdown("<div class='login-sub'>영어 학습 플랫폼 - 퀴즈 & 미션으로 영어 실력 UP!</div>", unsafe_allow_html=True)
-        
-        col1, col2, col3 = st.columns([0.8, 1.4, 0.8])
-        
-        with col2:
-            tab1, tab2 = st.tabs(["👨‍🏫 교사 로그인", "👨‍🎓 학생 입장"])
-            
-            # 교사 로그인
-            with tab1:
-                st.markdown("<div class='section-title'>교사 계정으로 로그인</div>", unsafe_allow_html=True)
-                
-                teacher_email = st.text_input("📧 이메일", placeholder="teacher@example.com")
-                teacher_password = st.text_input("🔑 비밀번호", type="password")
-                
-                if st.button("로그인", use_container_width=True, key="teacher_login"):
-                    if teacher_email and teacher_password:
-                        result = authenticate_teacher(teacher_email, teacher_password)
-                        if result["success"]:
-                            st.session_state.user_role = "teacher"
-                            st.session_state.user_email = result["user_email"]
-                            st.rerun()
-                        else:
-                            st.error(result["error"])
-                    else:
-                        st.error("이메일과 비밀번호를 입력하세요.")
-            
-            # 학생 입장
-            with tab2:
-                st.markdown("<div class='section-title'>학생 접속</div>", unsafe_allow_html=True)
-                
-                access_code = st.text_input("🔐 접속 코드 입력", placeholder="6자리 숫자")
-                
-                if st.button("입장하기", use_container_width=True, key="student_login"):
-                    if access_code:
-                        exists, assignment = check_access_code_exists(access_code)
-                        if exists:
-                            st.session_state.user_role = "student"
-                            st.session_state.access_code = access_code
-                            st.session_state.assignment = assignment
-                            st.rerun()
-                        else:
-                            st.error("❌ 유효하지 않은 접속 코드입니다.")
-                    else:
-                        st.error("접속 코드를 입력하세요.")
-    
-    # 로그인 후
-    else:
-        if st.session_state.user_role == "teacher":
-            col1, col2 = st.columns([10, 1])
-            with col2:
-                if st.button("🚪", help="로그아웃"):
-                    logout()
-            
-            show_teacher_dashboard()
-        
-        elif st.session_state.user_role == "student":
-            col1, col2 = st.columns([10, 1])
-            with col2:
-                if st.button("🚪", help="종료"):
-                    logout()
-            
-            show_student_workspace(st.session_state.assignment)
+    if not st.session_state.is_logged_in:
+        show_login_page()
+    elif st.session_state.user_role == "teacher":
+        show_teacher_dashboard()
+    elif st.session_state.user_role == "student":
+        show_student_workspace()
 
 
 if __name__ == "__main__":
