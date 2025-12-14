@@ -732,6 +732,9 @@ def show_step1_quiz(assignment_data):
     """Step 1: 퀴즈 풀기"""
     st.header("Step 1️⃣ 퀴즈 풀기")
     
+    # 지문을 session_state에 저장 (다른 활동에서 사용)
+    st.session_state.reading_text = assignment_data.get("text", "")
+    
     st.subheader("📖 지문")
     st.text_area(
         "지문 내용",
@@ -750,7 +753,13 @@ def show_step1_quiz(assignment_data):
         st.error("퀴즈 데이터를 불러올 수 없습니다.")
         return None
     
-    st.session_state.quiz_answers = []
+    # quiz_answers 초기화 (처음에만)
+    if 'quiz_answers' not in st.session_state:
+        st.session_state.quiz_answers = []
+    
+    # 새로운 quiz라면 초기화
+    if len(st.session_state.quiz_answers) != len(quiz_questions):
+        st.session_state.quiz_answers = []
     
     for idx, q in enumerate(quiz_questions):
         st.write(f"**{idx+1}. {q['question']}**")
@@ -759,12 +768,17 @@ def show_step1_quiz(assignment_data):
             options=q['options'],
             key=f"quiz_{idx}"
         )
-        st.session_state.quiz_answers.append({
+        
+        # quiz_answers 리스트 업데이트
+        if idx >= len(st.session_state.quiz_answers):
+            st.session_state.quiz_answers.append({})
+        
+        st.session_state.quiz_answers[idx] = {
             "question": q['question'],
             "selected": answer,
             "correct": q['options'][q['answer']],
             "is_correct": answer == q['options'][q['answer']]
-        })
+        }
         st.divider()
     
     if st.button("✅ 정답 제출하기", use_container_width=True, key="submit_quiz"):
@@ -1257,7 +1271,7 @@ def show_step4_report(quiz_score, activity_score, selected_mission_title):
     
     with col1:
         if st.button("🏠 메인으로 돌아가기", use_container_width=True, key="back_to_main"):
-            st.session_state.step = 0
+            st.session_state.step = 1
             st.rerun()
     
     with col2:
@@ -1639,6 +1653,16 @@ def show_student_workspace():
     # Step 초기화
     if 'step' not in st.session_state:
         st.session_state.step = 1
+    
+    # 필요한 session_state 값들 초기화
+    if 'detective_target_word' not in st.session_state:
+        st.session_state.detective_target_word = None
+    if 'mystery_target_word' not in st.session_state:
+        st.session_state.mystery_target_word = None
+    if 'mystery_hint_level' not in st.session_state:
+        st.session_state.mystery_hint_level = 0
+    if 'reading_text' not in st.session_state:
+        st.session_state.reading_text = ""
     
     # ReadFit 컬렉션에서 과제 데이터 로드
     try:
