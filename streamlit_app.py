@@ -34,74 +34,40 @@ def generate_report_insights_with_openai(submission_data, mission_details):
         "schema": {
             "type": "object",
             "properties": {
-                "strengths": {
-                    "type": "array",
-                    "items": {"type": "string"},
-                    "minItems": 2,
-                    "maxItems": 4
-                },
-                "weaknesses": {
-                    "type": "array",
-                    "items": {"type": "string"},
-                    "minItems": 1,
-                    "maxItems": 3
-                },
-                "next_steps": {
-                    "type": "array",
-                    "items": {"type": "string"},
-                    "minItems": 2,
-                    "maxItems": 5
-                },
-                "closing": {"type": "string"}
+                "one_line_feedback": {"type": "string"}
             },
-            "required": ["strengths", "weaknesses", "next_steps", "closing"],
+            "required": ["one_line_feedback"],
             "additionalProperties": False
         },
         "strict": True
     }
 
     mission_id = submission_data.get("mission_id", "")
+    is_correct = submission_data.get("activity_score", 0) >= 80
     
-    # image_detective는 interpretation_lens 기반 비인지주의 피드백
-    if mission_id == "image_detective":
-        interpretation_lens = mission_details.get("interpretation_lens", "사물")
-        prompt = (
-            "너는 학생 학습 코치를 도와주는 한국어 튜터야. "
-            f"학생은 이미지를 '{interpretation_lens}' 관점으로 보고 단어를 선택했어.\n\n"
-            "**중요 규칙:**\n"
-            "- 정답 단서를 판정하지 말고, 학생이 선택한 관점(interpretation_lens)을 중심으로:\n"
-            f"  * 왜 '{interpretation_lens}' 관점으로 보는 것이 자연스러운지 설명\n"
-            "  * 다른 관점(사물/행동/장소/느낌 중)으로 보면 무엇이 보일 수 있는지 제시\n"
-            "- 맞다/틀리다 언급 없이, 학생의 해석 과정 자체를 존중하고 기술\n"
-            "- 피드백 구조:\n"
-            f"  1) strengths: '{interpretation_lens}' 관점에서 어떻게 탐색했는지 과정 서술 (2~3개)\n"
-            "  2) weaknesses: 이 관점의 특성이나 한계를 중립적으로 설명 (1~2개, 비난 금지)\n"
-            "  3) next_steps: 다음 문제에서 다른 관점을 1번 시도하는 등 구체적 행동 제안 (2~3개)\n"
-            "  4) closing: 관점 탐색을 격려하는 한 문장\n"
-            "- 톤: '~해볼 수 있어요' 같은 제안 형태, 지시 금지"
-        )
-    # mystery_20_questions는 기존 비인지주의 프롬프트 유지
-    elif mission_id == "mystery_20_questions":
-        prompt = (
-            "너는 학생 학습 코치를 도와주는 한국어 튜터야. "
-            "입력된 제출 데이터와 미션 상세를 기반으로, 비인지주의 관점에서 피드백을 작성해줘.\n\n"
-            "**중요 규칙:**\n"
-            "- 정오판단(맞다/틀리다), 효율/전략 비교 같은 인지주의 표현을 절대 사용하지 말 것\n"
-            "- 피드백은 항상 3단 구조로:\n"
-            "  1) strengths: 학습자가 어떻게 해석하고 탐구했는지 과정을 서술 (2~3개)\n"
-            "  2) weaknesses: 그 과정의 의미나 한계를 비난 없이 중립적으로 설명 (1~2개)\n"
-            "  3) next_steps: 다음 활동에서 스스로 시도할 수 있는 구체적 변화 (2~3개)\n"
-            "  4) closing: 과정을 인정하고 탐구를 격려하는 한 문장\n"
-            "- 톤: 친근하지만 평가하지 않고, 학습자의 사고 과정을 존중하며 기술\n"
-            "- next_steps는 '~하세요' 같은 지시가 아닌 '~해볼 수 있어요' 같은 제안 형태로"
-        )
-    else:
-        # writer 등 기타 활동은 기존 코칭 스타일 유지
-        prompt = (
-            "너는 학생 학습 코치를 도와주는 한국어 튜터야. "
-            "입력된 제출 데이터와 미션 상세를 기반으로, 친근하고 격려하는 톤으로 요약 피드백을 만들어줘. "
-            "next_steps는 바로 실행 가능한 구체적 행동 형태로 작성해줘."
-        )
+    # 2~3문장 피드백 프롬프트 (칭찬 + 꿀팁)
+    prompt = f"""너는 초등학생을 따뜻하게 격려하는 선생님이야.
+아이가 {mission_id} 활동을 했고, {'정답' if is_correct else '오답'}을 골랐어.
+
+피드백 규칙 (총 2~3문장):
+1. [구체적인 칭찬] - 그림의 어떤 요소(주어/동사/사물 등)를 잘 찾았는지 콕 집어서 칭찬
+   예: "그림 속 주인공의 행동(run)을 아주 정확하게 캐치했네요!"
+   
+2. [앞으로의 공부 꿀팁] - 이번 활동과 관련된 구체적인 학습 행동 추천
+   예: "앞으로도 지문을 읽을 때 머릿속으로 상황을 그림처럼 상상해보는 연습을 해보세요!"
+   예: "다음에는 주인공의 행동을 나타내는 동사(Verb)에 동그라미를 치며 읽어볼까요?"
+
+톤앤매너:
+- 선생님이 옆에서 어깨를 토닥이며 격려해주는 따뜻한 말투
+- "공부 열심히 해" 같은 뻔한 말 금지
+- 쉽고 친근하게, 군더더기 설명 없이
+
+좋은 예시 (전체):
+"문장 속 장소(school)를 정확하게 찾아냈어요! 다음에는 주어가 누구인지도 함께 생각하며 읽어보면 더 잘 이해될 거예요."
+
+제출 데이터: {submission_data}
+미션 상세: {mission_details}
+"""
 
     try:
         resp = client.chat.completions.create(
@@ -123,23 +89,64 @@ def generate_report_insights_with_openai(submission_data, mission_details):
         st.error(f"❌ OpenAI 리포트 생성 실패: {type(e).__name__}: {str(e)}")
         return None
 
-def generate_image_with_dalle(word):
-    """OpenAI DALL-E 3를 사용하여 이미지 생성
+def generate_image_with_dalle(word, context_sentence=""):
+    """OpenAI DALL-E 3를 사용하여 지문 맥락 기반 장면 이미지 생성
     
     Args:
-        word (str): 그릴 단어
+        word (str): 정답 단어
+        context_sentence (str): 지문 속 맥락 문장
         
     Returns:
         bytes or str: 이미지 바이트 데이터 또는 URL
     """
-    api_key = st.secrets.get("OPENAI_API_KEY")
+    api_key = st.secrets.get("OPENAI_API_KEY") if hasattr(st, "secrets") else None
     
     if api_key:
         try:
             client = OpenAI(api_key=api_key)
+            
+            # 1단계: context_sentence를 시각화 가능한 장면 설명으로 변환
+            if context_sentence:
+                chat_response = client.chat.completions.create(
+                    model="gpt-4o-mini",
+                    messages=[{
+                        "role": "user",
+                        "content": f"""Convert this sentence into a visual scene description for an illustration.
+
+Original sentence: "{context_sentence}"
+Target word: "{word}"
+
+Rules:
+- Only describe what can be SEEN: characters, location, action, visible objects
+- Do NOT add information not in the original sentence
+- Keep it simple and clear (one sentence)
+- Focus on the key word: {word}
+
+Return ONLY the scene description, nothing else."""
+                    }],
+                    temperature=0.5
+                )
+                scene_description = chat_response.choices[0].message.content.strip()
+            else:
+                scene_description = f"A simple scene showing '{word}' in a typical context."
+            
+            # 2단계: 이미지 프롬프트를 지문 충실 템플릿으로 구성
+            image_prompt = f"""
+Create a simple educational illustration that is strictly grounded in the sentence below.
+Use ONLY what the sentence states. Do NOT add any new characters, cultures, religions, clothing styles, symbols, or events not mentioned.
+If details are not specified, use neutral generic characters.
+Keep it literal and simple. No text.
+
+Sentence:
+{context_sentence}
+
+Key word (use only if naturally visible in the sentence):
+{word}
+"""
+            
             result = client.images.generate(
                 model="dall-e-3",
-                prompt=f"Kid-friendly, colorful illustration of '{word}' on simple background",
+                prompt=image_prompt,
                 size="1024x1024",
                 response_format="b64_json"
             )
@@ -147,10 +154,14 @@ def generate_image_with_dalle(word):
             if b64_data:
                 return base64.b64decode(b64_data)
         except Exception as e:
-            st.warning(f"OpenAI 이미지 생성 실패: {e}")
+            st.warning(f"OpenAI 이미지 생성 실패, 기본 이미지로 대체합니다: {e}")
     
-    # 폴백: Picsum 이미지
-    return f"https://picsum.photos/seed/{word}/512/512"
+    # 폴백: Picsum 랜덤 이미지 (단어 시드)
+    try:
+        return f"https://picsum.photos/seed/{word}/512/512"
+    except Exception:
+        # 최종 폴백: Unsplash 기본
+        return f"https://source.unsplash.com/512x512/?{word},{random.randint(1,100)}"
 
 
 def get_educational_distractors(word):
@@ -171,6 +182,7 @@ def get_educational_distractors(word):
         client = OpenAI(api_key=api_key)
         response = client.chat.completions.create(
             model="gpt-4o-mini",
+            response_format={"type": "json_object"},
             messages=[{
                 "role": "user",
                 "content": f"""For the English word '{word}', generate 3 wrong answer options for a children's quiz:
@@ -184,11 +196,71 @@ Return ONLY a JSON object like: {{"semantic": "word1", "spelling": "word2", "ran
         )
         
         import json
-        result = json.loads(response.choices[0].message.content)
+        content = response.choices[0].message.content
+        if not content:
+            raise ValueError("Empty content from OpenAI for distractors")
+        result = json.loads(content)
         return result
     except Exception as e:
         st.warning(f"오답 생성 실패: {e}")
         return {"semantic": "dog", "spelling": "log", "random": "desk"}
+
+
+def get_sentence_distractors(correct_sentence, context_text):
+    """OpenAI GPT를 사용하여 문장 기반 교육적 오답 생성
+    
+    Args:
+        correct_sentence (str): 정답 문장 (S+V+O 형태)
+        context_text (str): 지문 내용
+        
+    Returns:
+        dict: {"subject_wrong": str, "verb_wrong": str, "object_wrong": str}
+    """
+    api_key = st.secrets.get("OPENAI_API_KEY") if hasattr(st, "secrets") else None
+    
+    if not api_key:
+        return {
+            "subject_wrong": "The girl is running to school.",
+            "verb_wrong": "The boy is walking to school.",
+            "object_wrong": "The boy is running to the park."
+        }
+    
+    try:
+        client = OpenAI(api_key=api_key)
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            response_format={"type": "json_object"},
+            messages=[{
+                "role": "user",
+                "content": f"""Given the correct sentence: "{correct_sentence}"
+Context from passage: "{context_text}"
+
+Generate 3 wrong answer sentences for a children's quiz. Each wrong sentence should be based on the correct sentence but with ONLY ONE WORD changed:
+
+1. subject_wrong: Change ONLY the subject (who/what does the action)
+2. verb_wrong: Change ONLY the verb/action
+3. object_wrong: Change ONLY the object/destination/place
+
+Keep sentences simple (S+V+O structure). Use words that could plausibly fit but are incorrect based on the context.
+
+Return ONLY a JSON object like: {{"subject_wrong": "sentence1", "verb_wrong": "sentence2", "object_wrong": "sentence3"}}"""
+            }],
+            temperature=0.7
+        )
+        
+        import json
+        content = response.choices[0].message.content
+        if not content:
+            raise ValueError("Empty content from OpenAI for sentence distractors")
+        result = json.loads(content)
+        return result
+    except Exception as e:
+        st.warning(f"오답 생성 실패: {e}")
+        return {
+            "subject_wrong": "The girl is running to school.",
+            "verb_wrong": "The boy is walking to school.",
+            "object_wrong": "The boy is running to the park."
+        }
 
 
 def get_writing_feedback(text, keywords):
@@ -855,122 +927,174 @@ def show_step2_mission_selection(quiz_score):
 
 
 # ============================================================================
-# [복원] DALL-E 이미지 생성 (OpenAI) + 안전한 폴백
-# ============================================================================
-def generate_image_with_dalle(word):
-    """DALL-E를 우선 호출하고, 실패 시 안전한 폴백 URL을 반환합니다."""
-    api_key = st.secrets.get("OPENAI_API_KEY") if hasattr(st, "secrets") else None
-
-    # 1) OpenAI DALL-E
-    if api_key:
-        try:
-            client = OpenAI(api_key=api_key)
-            result = client.images.generate(
-                model="dall-e-3",
-                prompt=f"Kid-friendly, colorful illustration of '{word}' on simple background",
-                size="1024x1024",
-                response_format="b64_json"
-            )
-            b64_data = result.data[0].b64_json
-            if b64_data:
-                return base64.b64decode(b64_data)
-        except Exception as e:
-            st.warning(f"OpenAI 이미지 생성 실패, 기본 이미지로 대체합니다: {e}")
-
-    # 2) 폴백: Picsum 랜덤 이미지 (단어 시드)
-    try:
-        return f"https://picsum.photos/seed/{word}/512/512"
-    except Exception:
-        # 3) 최종 폴백: Unsplash 기본
-        return f"https://source.unsplash.com/512x512/?{word},{random.randint(1,100)}"
-
-
-# ============================================================================
 # [수정] Step 3: 이미지 탐정 전용 함수 (독립 함수로 분리)
 # ============================================================================
 def show_step3_image_detective():
-    """Step 3: 이미지 탐정 활동 - AI로 동적 오답 생성"""
+    """Step 3: 이미지 탐정 활동 - 장면 묘사 문장 선택 1문제"""
     st.subheader("🎨 이미지 탐정")
-    st.write("**AI가 그린 그림을 보고 단어를 맞춰보세요!**")
+    st.write("**AI가 그린 장면을 가장 잘 묘사한 문장을 고르세요!**")
     
     # 세션 초기화
-    if "detective_target_word" not in st.session_state:
-        st.session_state.detective_target_word = None
-        st.session_state.detective_image = None
-        st.session_state.detective_options = []
-        st.session_state.detective_option_types = {}
-    
-    # 단어 및 이미지 생성 로직
-    if st.session_state.detective_target_word is None:
-        # 학습한 지문에서 단어 추출 (3글자 이상 명사 우선)
+    if "detective_sentence_data" not in st.session_state:
         text = st.session_state.get("reading_text", "The dog runs in the park.")
-        words = [w.strip('.,!?;:"()[]') for w in text.split() if len(w.strip('.,!?;:"()[]')) > 3]
-        target_word = random.choice(words) if words else "dog"
-        st.session_state.detective_target_word = target_word
-        
-        # AI를 통해 교육적 오답 생성
         with st.spinner("🤖 AI가 문제를 만들고 있어요..."):
-            distractors = get_educational_distractors(target_word)
-        
-        # 선택지 구성: 정답 + 3가지 유형 오답
-        options_with_types = [
-            (target_word, "correct"),
-            (distractors.get("semantic", "dog"), "semantic"),
-            (distractors.get("spelling", "log"), "spelling"),
-            (distractors.get("random", "desk"), "random")
-        ]
-        
-        random.shuffle(options_with_types)
-        
-        st.session_state.detective_options = [opt[0] for opt in options_with_types]
-        st.session_state.detective_option_types = {opt[0]: opt[1] for opt in options_with_types}
-        
-        # 이미지 생성
-        with st.spinner("🤖 AI가 그림을 그리고 있어요!"):
-            image_result = generate_image_with_dalle(target_word)
-            st.session_state.detective_image = image_result
+            # 1) 지문 전체를 입력으로 핵심 장면 요약 문장 1개 생성
+            try:
+                api_key = st.secrets.get("OPENAI_API_KEY") if hasattr(st, "secrets") else None
+                if api_key:
+                    client = OpenAI(api_key=api_key)
+                    core_resp = client.chat.completions.create(
+                        model="gpt-4o-mini",
+                        messages=[{
+                            "role": "user",
+                            "content": (
+                                "From the following passage, write ONE short, literal English sentence (S+V+O) that best describes the single core scene that can be illustrated for young learners.\n\n"
+                                f"Passage:\n{text}\n\n"
+                                "Rules:\n- Use only what the passage explicitly states.\n- Keep under 12 words.\n- No extra details, no proper nouns unless present.\n- Return ONLY the sentence, nothing else."
+                            )
+                        }],
+                        temperature=0.2
+                    )
+                    correct_sentence = (core_resp.choices[0].message.content or "").strip().strip('"')
+                else:
+                    # API 미사용 시: 첫 문장을 기반으로 사용
+                    sentences = [s.strip() for s in text.replace('!', '.').replace('?', '.').split('.') if s.strip()]
+                    correct_sentence = sentences[0] if sentences else "The dog runs in the park."
+            except Exception as e:
+                st.warning(f"핵심 장면 문장 생성 실패: {e}")
+                sentences = [s.strip() for s in text.replace('!', '.').replace('?', '.').split('.') if s.strip()]
+                correct_sentence = sentences[0] if sentences else "The dog runs in the park."
+
+            # 2) 오답 3개 생성 후 품질/중복 필터링
+            distractors_raw = get_sentence_distractors(correct_sentence, text)
+            candidates = [
+                (distractors_raw.get("subject_wrong", "The girl is running to school."), "subject_wrong"),
+                (distractors_raw.get("verb_wrong", "The boy is walking to school."), "verb_wrong"),
+                (distractors_raw.get("object_wrong", "The boy is running to the park."), "object_wrong"),
+            ]
+
+            def is_sensible(s: str) -> bool:
+                if not s:
+                    return False
+                words = s.split()
+                if len(words) < 3 or len(words) > 16:
+                    return False
+                if not any(ch.isalpha() for ch in s):
+                    return False
+                return True
+
+            # 중복/정답 동일/비정상 문장 제거
+            seen = set([correct_sentence.strip().lower()])
+            filtered = []
+            for sent, kind in candidates:
+                norm = (sent or "").strip().strip('"').rstrip('.').lower()
+                corr_norm = correct_sentence.strip().rstrip('.').lower()
+                if not is_sensible(sent):
+                    continue
+                if norm == corr_norm:
+                    continue
+                if norm in seen:
+                    continue
+                seen.add(norm)
+                filtered.append((sent.strip().strip('"'), kind))
+
+            # 부족하면 안전한 기본 오답으로 채우되 중복 방지
+            fallbacks = [
+                ("The girl is running to school.", "fallback_subject"),
+                ("The boy is walking to school.", "fallback_verb"),
+                ("The boy is running to the park.", "fallback_object"),
+            ]
+            for sent, kind in fallbacks:
+                if len(filtered) >= 3:
+                    break
+                norm = sent.rstrip('.').lower()
+                if norm not in seen and is_sensible(sent):
+                    seen.add(norm)
+                    filtered.append((sent, kind))
+
+            # 최종 4개 선택지 구성 (정답 + 3 오답), 모두 상이 보장
+            options_with_types = [(correct_sentence, "correct")] + filtered[:3]
+            random.shuffle(options_with_types)
+
+            # 3) 이미지 생성은 correct_sentence만 사용
+            image_result = generate_image_with_dalle("", correct_sentence)
+
+            # 데이터 저장
+            st.session_state.detective_sentence_data = {
+                "correct_sentence": correct_sentence,
+                "image": image_result,
+                "options": [opt[0] for opt in options_with_types],
+                "option_types": {opt[0]: opt[1] for opt in options_with_types}
+            }
+    
+    data = st.session_state.detective_sentence_data
     
     # 이미지 표시
-    if st.session_state.detective_image:
+    if data["image"]:
         try:
-            st.image(st.session_state.detective_image, caption="이 그림이 무엇일까요?", use_container_width=True)
+            st.image(data["image"], caption="이 장면을 가장 잘 나타내는 문장은?", use_container_width=True)
         except Exception as e:
             st.warning(f"⚠️ 이미지를 로드할 수 없습니다. ({str(e)})")
     else:
         st.warning("⚠️ 이미지를 준비하지 못했습니다.")
     
     st.divider()
-    st.write("**아래 버튼 중 정답을 선택하세요:**")
+    st.write("**아래 문장 중 정답을 선택하세요:**")
     
-    # 4개 선택지 버튼
-    cols = st.columns(4)
-    for idx, option in enumerate(st.session_state.detective_options):
-        with cols[idx]:
-            if st.button(f"**{option}**", key=f"detect_{idx}", use_container_width=True):
-                target = st.session_state.detective_target_word
-                answer = option
-                answer_type = st.session_state.detective_option_types.get(answer, "unknown")
-                
-                # 세션에 저장 (해석 관점은 기본값 사용)
-                st.session_state.detective_target = target
-                st.session_state.detective_answer = answer
-                st.session_state.detective_answer_type = answer_type
-                
-                if answer == target:
-                    st.session_state.activity_score = 100
-                    st.success("🎉 정답입니다!")
-                else:
-                    st.session_state.activity_score = 30
-                    st.error(f"❌ 틀렸습니다. 정답은 '{target}'입니다.")
-                
-                # 세션 초기화
-                st.session_state.detective_target_word = None
-                st.session_state.detective_image = None
-                st.session_state.detective_options = []
-                st.session_state.detective_option_types = {}
-                
-                st.session_state.step = 4
-                st.rerun()
+    # 4개 선택지 버튼 (2x2 배치)
+    for idx in range(0, 4, 2):
+        col1, col2 = st.columns(2)
+        with col1:
+            if idx < len(data["options"]):
+                option = data["options"][idx]
+                if st.button(f"{chr(65+idx)}. {option}", key=f"detect_sent_{idx}", use_container_width=True):
+                    correct = data["correct_sentence"]
+                    answer_type = data["option_types"].get(option, "unknown")
+                    
+                    # 정답 체크
+                    if option == correct:
+                        st.session_state.activity_score = 100
+                        st.success("🎉 정답입니다!")
+                    else:
+                        st.session_state.activity_score = 30
+                        st.error(f"❌ 틀렸습니다. 정답은 '{correct}'입니다.")
+                    
+                    # 리포트용 데이터 저장
+                    st.session_state.detective_target = correct
+                    st.session_state.detective_answer = option
+                    st.session_state.detective_answer_type = answer_type
+                    
+                    # 초기화
+                    st.session_state.detective_sentence_data = None
+                    
+                    st.session_state.step = 4
+                    st.rerun()
+        
+        with col2:
+            if idx + 1 < len(data["options"]):
+                option = data["options"][idx + 1]
+                if st.button(f"{chr(65+idx+1)}. {option}", key=f"detect_sent_{idx+1}", use_container_width=True):
+                    correct = data["correct_sentence"]
+                    answer_type = data["option_types"].get(option, "unknown")
+                    
+                    # 정답 체크
+                    if option == correct:
+                        st.session_state.activity_score = 100
+                        st.success("🎉 정답입니다!")
+                    else:
+                        st.session_state.activity_score = 30
+                        st.error(f"❌ 틀렸습니다. 정답은 '{correct}'입니다.")
+                    
+                    # 리포트용 데이터 저장
+                    st.session_state.detective_target = correct
+                    st.session_state.detective_answer = option
+                    st.session_state.detective_answer_type = answer_type
+                    
+                    # 초기화
+                    st.session_state.detective_sentence_data = None
+                    
+                    st.session_state.step = 4
+                    st.rerun()
 
 
 # ============================================================================
@@ -1163,10 +1287,7 @@ def show_step4_report(quiz_score, activity_score, selected_mission_title):
         if not insights:
             st.warning("⚠️ AI 분석 리포트 생성 실패 - 기본 피드백을 사용합니다.")
             insights = {
-                "strengths": ["지문 이해와 문제 해결에 성실히 참여했습니다.", "학습 활동에 적극적으로 참여하는 태도가 좋습니다."],
-                "weaknesses": ["핵심 단어와 표현의 정확도를 더 높일 필요가 있습니다."],
-                "next_steps": ["오늘 배운 핵심 단어 5개를 소리 내어 읽고 예문을 1개씩 작성하세요.", "이미지/문장 힌트를 활용해 유사어와 반의어를 구분해보세요.", "매일 10분씩 영어 단어 복습 시간을 가지세요."],
-                "closing": "좋은 출발이에요! 꾸준히 연습하면 금방 실력이 올라갑니다. 화이팅!"
+                "one_line_feedback": "오늘 활동에 성실히 참여해서 정말 잘했어요! 다음에는 그림을 더 자세히 관찰하며 단어의 의미를 생각해보는 연습을 해보세요."
             }
         
         # 분석 결과를 저장에 포함 (insights 생성 후)
@@ -1235,20 +1356,11 @@ def show_step4_report(quiz_score, activity_score, selected_mission_title):
         
         st.divider()
 
-    # OpenAI 학습 분석 리포트 출력 섹션 (모든 활동 통합)
+    # OpenAI 학습 분석 리포트 출력 섹션 (한 줄 평)
     try:
-        st.subheader("🧠 학습 분석 리포트 (강점 · 다음 학습)")
-        if insights:
-            if insights.get("strengths"):
-                st.markdown("**강점**")
-                for s in insights["strengths"]:
-                    st.write(f"- {s}")
-            if insights.get("next_steps"):
-                st.markdown("**다음 학습**")
-                for n in insights["next_steps"]:
-                    st.write(f"- {n}")
-            if insights.get("closing"):
-                st.info(insights["closing"])
+        st.subheader("👏 선생님의 한 마디")
+        if insights and insights.get("one_line_feedback"):
+            st.success(insights["one_line_feedback"])
         else:
             st.info("분석 리포트를 생성하지 못했습니다. 다음 학습으로 핵심 단어 복습과 예문 작성부터 시도해보세요.")
     except Exception:
