@@ -104,18 +104,23 @@ def generate_report_insights_with_openai(submission_data, mission_details):
         )
 
     try:
-        resp = client.responses.create(
+        resp = client.chat.completions.create(
             model="gpt-4o-mini",
-            input=[{"role": "system", "content": prompt}, {"role": "user", "content": str({"submission": submission_data, "mission_details": mission_details})}],
+            messages=[
+                {"role": "system", "content": prompt},
+                {"role": "user", "content": str({"submission": submission_data, "mission_details": mission_details})}
+            ],
             response_format={"type": "json_schema", "json_schema": json_schema}
         )
 
-        content = resp.output_text if hasattr(resp, "output_text") else None
+        content = resp.choices[0].message.content
         if not content:
+            st.error("❌ OpenAI 응답에 content가 없습니다.")
             return None
         import json
         return json.loads(content)
-    except Exception:
+    except Exception as e:
+        st.error(f"❌ OpenAI 리포트 생성 실패: {type(e).__name__}: {str(e)}")
         return None
 
 def generate_image_with_dalle(word):
@@ -983,7 +988,7 @@ def show_step3_activity(selected_mission):
         st.write("💡 **빈칸에 들어갈 단어를 맞춰보세요!**")
         
         # 세션 초기화
-        if "mystery_target_word" not in st.session_state:
+        if "mystery_target_word" not in st.session_state or st.session_state.mystery_target_word is None:
             # 지문에서 단어 추출 (간단히 공백 기준 분리)
             text = st.session_state.get("reading_text", "The dog is a friendly animal.")
             words = [w.strip('.,!?;:"()[]') for w in text.split() if len(w.strip('.,!?;:"()[]')) > 3]
@@ -1008,29 +1013,29 @@ def show_step3_activity(selected_mission):
         target_word = st.session_state.mystery_target_word
         hint_level = st.session_state.mystery_hint_level
         
-        if hint_level >= 1:
+        if hint_level > 0:
             st.success(f"**힌트 1:** 이 단어는 지문에 나온 중요한 단어입니다.")
-        if hint_level >= 2:
+        if hint_level > 1:
             st.success(f"**힌트 2:** 단어의 길이는 {len(target_word)}글자입니다.")
-        if hint_level >= 3 and len(target_word) > 0:
+        if hint_level > 2 and len(target_word) > 0:
             st.success(f"**힌트 3:** 첫 글자는 '{target_word[0].upper()}'입니다.")
-        if hint_level >= 4 and len(target_word) > 1:
+        if hint_level > 3 and len(target_word) > 1:
             st.success(f"**힌트 4:** 마지막 글자는 '{target_word[-1].lower()}'입니다.")
-        if hint_level >= 5 and len(target_word) > 2:
+        if hint_level > 4 and len(target_word) > 2:
             st.success(f"**힌트 5:** 두 번째 글자는 '{target_word[1].lower()}'입니다.")
-        if hint_level >= 6:
+        if hint_level > 5:
             vowels = [c for c in target_word.lower() if c in 'aeiou']
             st.success(f"**힌트 6:** 이 단어에는 모음이 {len(vowels)}개 있습니다.")
-        if hint_level >= 7 and len(target_word) > 3:
+        if hint_level > 6 and len(target_word) > 3:
             revealed = target_word[0] + '_' * (len(target_word) - 2) + target_word[-1]
             st.success(f"**힌트 7:** 단어 패턴: {revealed}")
-        if hint_level >= 8 and len(target_word) > 2:
+        if hint_level > 7 and len(target_word) > 2:
             mid_char = target_word[len(target_word)//2]
             st.success(f"**힌트 8:** 가운데 글자는 '{mid_char.lower()}'입니다.")
-        if hint_level >= 9:
+        if hint_level > 8:
             revealed = ''.join([c if i % 2 == 0 else '_' for i, c in enumerate(target_word)])
             st.success(f"**힌트 9:** 더 많은 글자: {revealed}")
-        if hint_level >= 10:
+        if hint_level > 9:
             st.success(f"**정답:** {target_word}")
         
         st.divider()
@@ -1039,7 +1044,7 @@ def show_step3_activity(selected_mission):
         answer = st.text_input("정답을 입력하세요:", key="mystery_answer_input")
         if st.button("정답 제출하기", use_container_width=True, key="submit_mystery"):
             target = st.session_state.mystery_target_word
-            if answer.strip().lower() == target.lower():
+            if target and answer.strip().lower() == target.lower():
                 st.session_state.activity_score = 100
                 st.success(f"🎉 정답입니다! '{target}'")
             else:
@@ -1156,6 +1161,7 @@ def show_step4_report(quiz_score, activity_score, selected_mission_title):
         
         # 실패/예외 시 Fallback (항상 유효한 insights 보장)
         if not insights:
+            st.warning("⚠️ AI 분석 리포트 생성 실패 - 기본 피드백을 사용합니다.")
             insights = {
                 "strengths": ["지문 이해와 문제 해결에 성실히 참여했습니다.", "학습 활동에 적극적으로 참여하는 태도가 좋습니다."],
                 "weaknesses": ["핵심 단어와 표현의 정확도를 더 높일 필요가 있습니다."],
@@ -1542,15 +1548,6 @@ def show_teacher_dashboard():
         
         st.subheader(f"🎯 {unit_title} ({difficulty})")
         
-        # 디버그 정보
-        with st.expander("🔍 디버그 정보", expanded=True):
-            st.write(f"**선택된 단원**: `{selected_unit}`")
-            st.write(f"**선택된 난이도**: `{difficulty}`")
-            st.write(f"**추출된 난이도 키**: `{difficulty_key}`")
-            st.write(f"**사용 가능한 난이도 키들**: `{list(unit_data.keys())}`")
-            st.write(f"**지문 길이**: {len(text_content)} 글자")
-            st.write(f"**지문 시작 100자**: {text_content[:100]}...")
-        
         # 지문 미리보기 및 수정
         st.markdown("### 📖 지문 내용")
         st.caption("💡 지문 내용을 직접 수정할 수 있습니다.")
@@ -1659,6 +1656,8 @@ def show_student_workspace():
         st.session_state.detective_target_word = None
     if 'mystery_target_word' not in st.session_state:
         st.session_state.mystery_target_word = None
+    if 'mystery_text_with_blank' not in st.session_state:
+        st.session_state.mystery_text_with_blank = ""
     if 'mystery_hint_level' not in st.session_state:
         st.session_state.mystery_hint_level = 0
     if 'reading_text' not in st.session_state:
